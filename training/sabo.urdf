@@ -1,0 +1,248 @@
+<?xml version="1.0"?>
+<robot name="sabo">
+  <link name="torso_fore">
+    <inertial><origin xyz="0.04775 0.00000 0.00000"/>
+      <mass value="0.1880"/><inertia ixx="1.586304e-04" ixy="0" ixz="0" iyy="1.746149e-04" iyz="0" izz="2.697931e-04"/></inertial>
+    <visual><geometry><box size="0.09550 0.09000 0.04500"/></geometry><origin xyz="0.04775 0.00000 0.00000"/></visual>
+    <collision><geometry><box size="0.09550 0.09000 0.04500"/></geometry><origin xyz="0.04775 0.00000 0.00000"/></collision>
+  </link>
+  <link name="torso_aft">
+    <inertial><origin xyz="-0.04775 0.00000 0.00000"/>
+      <mass value="0.2340"/><inertia ixx="1.974429e-04" ixy="0" ixz="0" iyy="2.173383e-04" iyz="0" izz="3.358041e-04"/></inertial>
+    <visual><geometry><box size="0.09550 0.09000 0.04500"/></geometry><origin xyz="-0.04775 0.00000 0.00000"/></visual>
+    <collision><geometry><box size="0.09550 0.09000 0.04500"/></geometry><origin xyz="-0.04775 0.00000 0.00000"/></collision>
+  </link>
+  <joint name="torso_aft" type="revolute">
+    <parent link="torso_fore"/><child link="torso_aft"/><origin xyz="0.00000 0.00000 0.00000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-0.45" upper="0.65" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="FL_abd">
+    <inertial><origin xyz="0.00000 0.00850 -0.00600"/>
+      <mass value="0.0442"/><inertia ixx="9.018458e-06" ixy="0" ixz="0" iyy="6.290835e-06" iyz="0" izz="6.290835e-06"/></inertial>
+    <visual><geometry><box size="0.02200 0.03500 0.03500"/></geometry><origin xyz="0.00000 0.00850 -0.00600"/></visual>
+    <collision><geometry><box size="0.02200 0.03500 0.03500"/></geometry><origin xyz="0.00000 0.00850 -0.00600"/></collision>
+  </link>
+  <joint name="FL_abd_fix" type="fixed">
+    <parent link="torso_fore"/><child link="FL_abd"/><origin xyz="0.07400 0.03500 0.00000" rpy="0 0 0"/></joint>
+  <link name="FL_hip">
+    <inertial><origin xyz="0.00000 0.00000 -0.01865"/>
+      <mass value="0.0381"/><inertia ixx="5.234033e-06" ixy="0" ixz="0" iyy="4.957603e-06" iyz="0" izz="1.350378e-06"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></collision>
+  </link>
+  <joint name="FL_hip" type="revolute">
+    <parent link="FL_abd"/><child link="FL_hip"/><origin xyz="0.00000 0.02600 0.00000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="FL_knee">
+    <inertial><origin xyz="0.00000 0.00000 -0.01865"/>
+      <mass value="0.0031"/><inertia ixx="4.294375e-07" ixy="0" ixz="0" iyy="4.067572e-07" iyz="0" izz="1.107947e-07"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></collision>
+  </link>
+  <joint name="FL_knee" type="revolute">
+    <parent link="FL_hip"/><child link="FL_knee"/><origin xyz="0.00000 0.00000 -0.05200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="FL_ankle">
+    <inertial><origin xyz="0.00000 0.00000 -0.01700"/>
+      <mass value="0.0031"/><inertia ixx="3.597214e-07" ixy="0" ixz="0" iyy="3.597214e-07" iyz="0" izz="1.304372e-07"/></inertial>
+    <visual><geometry><box size="0.01600 0.01600 0.03400"/></geometry><origin xyz="0.00000 0.00000 -0.01700"/></visual>
+    <collision><geometry><box size="0.01600 0.01600 0.03400"/></geometry><origin xyz="0.00000 0.00000 -0.01700"/></collision>
+    <collision><origin xyz="0 0 -0.02600"/><geometry><sphere radius="0.00800"/></geometry></collision>
+  </link>
+  <joint name="FL_ankle" type="revolute">
+    <parent link="FL_knee"/><child link="FL_ankle"/><origin xyz="0.00000 0.00000 -0.05200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.2" upper="2.2" effort="1.961" velocity="10.47"/>
+    <mimic joint="FL_knee" multiplier="-0.55" offset="0.6156784630204686"/>
+  </joint>
+  <link name="FR_abd">
+    <inertial><origin xyz="0.00000 -0.00850 -0.00600"/>
+      <mass value="0.0442"/><inertia ixx="9.018458e-06" ixy="0" ixz="0" iyy="6.290835e-06" iyz="0" izz="6.290835e-06"/></inertial>
+    <visual><geometry><box size="0.02200 0.03500 0.03500"/></geometry><origin xyz="0.00000 -0.00850 -0.00600"/></visual>
+    <collision><geometry><box size="0.02200 0.03500 0.03500"/></geometry><origin xyz="0.00000 -0.00850 -0.00600"/></collision>
+  </link>
+  <joint name="FR_abd_fix" type="fixed">
+    <parent link="torso_fore"/><child link="FR_abd"/><origin xyz="0.07400 -0.03500 0.00000" rpy="0 0 0"/></joint>
+  <link name="FR_hip">
+    <inertial><origin xyz="0.00000 0.00000 -0.01865"/>
+      <mass value="0.0381"/><inertia ixx="5.234033e-06" ixy="0" ixz="0" iyy="4.957603e-06" iyz="0" izz="1.350378e-06"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></collision>
+  </link>
+  <joint name="FR_hip" type="revolute">
+    <parent link="FR_abd"/><child link="FR_hip"/><origin xyz="0.00000 -0.02600 0.00000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="FR_knee">
+    <inertial><origin xyz="0.00000 0.00000 -0.01865"/>
+      <mass value="0.0031"/><inertia ixx="4.294375e-07" ixy="0" ixz="0" iyy="4.067572e-07" iyz="0" izz="1.107947e-07"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.03730"/></geometry><origin xyz="0.00000 0.00000 -0.01865"/></collision>
+  </link>
+  <joint name="FR_knee" type="revolute">
+    <parent link="FR_hip"/><child link="FR_knee"/><origin xyz="0.00000 0.00000 -0.05200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="FR_ankle">
+    <inertial><origin xyz="0.00000 0.00000 -0.01700"/>
+      <mass value="0.0031"/><inertia ixx="3.597214e-07" ixy="0" ixz="0" iyy="3.597214e-07" iyz="0" izz="1.304372e-07"/></inertial>
+    <visual><geometry><box size="0.01600 0.01600 0.03400"/></geometry><origin xyz="0.00000 0.00000 -0.01700"/></visual>
+    <collision><geometry><box size="0.01600 0.01600 0.03400"/></geometry><origin xyz="0.00000 0.00000 -0.01700"/></collision>
+    <collision><origin xyz="0 0 -0.02600"/><geometry><sphere radius="0.00800"/></geometry></collision>
+  </link>
+  <joint name="FR_ankle" type="revolute">
+    <parent link="FR_knee"/><child link="FR_ankle"/><origin xyz="0.00000 0.00000 -0.05200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.2" upper="2.2" effort="1.961" velocity="10.47"/>
+    <mimic joint="FR_knee" multiplier="-0.55" offset="0.6156784630204686"/>
+  </joint>
+  <link name="RL_abd">
+    <inertial><origin xyz="0.00000 0.01050 -0.00600"/>
+      <mass value="0.0460"/><inertia ixx="1.052451e-05" ixy="0" ixz="0" iyy="6.550033e-06" iyz="0" izz="7.684503e-06"/></inertial>
+    <visual><geometry><box size="0.02200 0.03900 0.03500"/></geometry><origin xyz="0.00000 0.01050 -0.00600"/></visual>
+    <collision><geometry><box size="0.02200 0.03900 0.03500"/></geometry><origin xyz="0.00000 0.01050 -0.00600"/></collision>
+  </link>
+  <joint name="RL_abd_fix" type="fixed">
+    <parent link="torso_aft"/><child link="RL_abd"/><origin xyz="-0.07400 0.03500 0.00000" rpy="0 0 0"/></joint>
+  <link name="RL_hip">
+    <inertial><origin xyz="0.00000 0.00000 -0.02365"/>
+      <mass value="0.0388"/><inertia ixx="8.051731e-06" ixy="0" ixz="0" iyy="7.770777e-06" iyz="0" izz="1.372478e-06"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></collision>
+  </link>
+  <joint name="RL_hip" type="revolute">
+    <parent link="RL_abd"/><child link="RL_hip"/><origin xyz="0.00000 0.03000 0.00000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="RL_knee">
+    <inertial><origin xyz="0.00000 0.00000 -0.02365"/>
+      <mass value="0.0038"/><inertia ixx="7.796352e-07" ixy="0" ixz="0" iyy="7.524308e-07" iyz="0" izz="1.328947e-07"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></collision>
+  </link>
+  <joint name="RL_knee" type="revolute">
+    <parent link="RL_hip"/><child link="RL_knee"/><origin xyz="0.00000 0.00000 -0.06200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="RL_ankle">
+    <inertial><origin xyz="0.00000 0.00000 -0.02500"/>
+      <mass value="0.0044"/><inertia ixx="1.012628e-06" ixy="0" ixz="0" iyy="1.012628e-06" iyz="0" izz="1.881225e-07"/></inertial>
+    <visual><geometry><box size="0.01600 0.01600 0.05000"/></geometry><origin xyz="0.00000 0.00000 -0.02500"/></visual>
+    <collision><geometry><box size="0.01600 0.01600 0.05000"/></geometry><origin xyz="0.00000 0.00000 -0.02500"/></collision>
+    <collision><origin xyz="0 0 -0.04200"/><geometry><sphere radius="0.00800"/></geometry></collision>
+  </link>
+  <joint name="RL_ankle" type="revolute">
+    <parent link="RL_knee"/><child link="RL_ankle"/><origin xyz="0.00000 0.00000 -0.06200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.2" upper="2.2" effort="1.961" velocity="10.47"/>
+    <mimic joint="RL_knee" multiplier="-0.55" offset="0.924453548936735"/>
+  </joint>
+  <link name="RR_abd">
+    <inertial><origin xyz="0.00000 -0.01050 -0.00600"/>
+      <mass value="0.0460"/><inertia ixx="1.052451e-05" ixy="0" ixz="0" iyy="6.550033e-06" iyz="0" izz="7.684503e-06"/></inertial>
+    <visual><geometry><box size="0.02200 0.03900 0.03500"/></geometry><origin xyz="0.00000 -0.01050 -0.00600"/></visual>
+    <collision><geometry><box size="0.02200 0.03900 0.03500"/></geometry><origin xyz="0.00000 -0.01050 -0.00600"/></collision>
+  </link>
+  <joint name="RR_abd_fix" type="fixed">
+    <parent link="torso_aft"/><child link="RR_abd"/><origin xyz="-0.07400 -0.03500 0.00000" rpy="0 0 0"/></joint>
+  <link name="RR_hip">
+    <inertial><origin xyz="0.00000 0.00000 -0.02365"/>
+      <mass value="0.0388"/><inertia ixx="8.051731e-06" ixy="0" ixz="0" iyy="7.770777e-06" iyz="0" izz="1.372478e-06"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></collision>
+  </link>
+  <joint name="RR_hip" type="revolute">
+    <parent link="RR_abd"/><child link="RR_hip"/><origin xyz="0.00000 -0.03000 0.00000" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="RR_knee">
+    <inertial><origin xyz="0.00000 0.00000 -0.02365"/>
+      <mass value="0.0038"/><inertia ixx="7.796352e-07" ixy="0" ixz="0" iyy="7.524308e-07" iyz="0" izz="1.328947e-07"/></inertial>
+    <visual><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></visual>
+    <collision><geometry><box size="0.01300 0.01600 0.04730"/></geometry><origin xyz="0.00000 0.00000 -0.02365"/></collision>
+  </link>
+  <joint name="RR_knee" type="revolute">
+    <parent link="RR_hip"/><child link="RR_knee"/><origin xyz="0.00000 0.00000 -0.06200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="0.0" upper="2.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="RR_ankle">
+    <inertial><origin xyz="0.00000 0.00000 -0.02500"/>
+      <mass value="0.0044"/><inertia ixx="1.012628e-06" ixy="0" ixz="0" iyy="1.012628e-06" iyz="0" izz="1.881225e-07"/></inertial>
+    <visual><geometry><box size="0.01600 0.01600 0.05000"/></geometry><origin xyz="0.00000 0.00000 -0.02500"/></visual>
+    <collision><geometry><box size="0.01600 0.01600 0.05000"/></geometry><origin xyz="0.00000 0.00000 -0.02500"/></collision>
+    <collision><origin xyz="0 0 -0.04200"/><geometry><sphere radius="0.00800"/></geometry></collision>
+  </link>
+  <joint name="RR_ankle" type="revolute">
+    <parent link="RR_knee"/><child link="RR_ankle"/><origin xyz="0.00000 0.00000 -0.06200" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.2" upper="2.2" effort="1.961" velocity="10.47"/>
+    <mimic joint="RR_knee" multiplier="-0.55" offset="0.924453548936735"/>
+  </joint>
+  <link name="head_pan">
+    <inertial><origin xyz="0.00000 0.00000 0.00000"/>
+      <mass value="0.0401"/><inertia ixx="2.957569e-06" ixy="0" ixz="0" iyy="2.703299e-06" iyz="0" izz="2.422263e-06"/></inertial>
+    <visual><geometry><box size="0.01800 0.02000 0.02200"/></geometry><origin xyz="0.00000 0.00000 0.00000"/></visual>
+    <collision><geometry><box size="0.01800 0.02000 0.02200"/></geometry><origin xyz="0.00000 0.00000 0.00000"/></collision>
+  </link>
+  <joint name="head_pan" type="revolute">
+    <parent link="torso_fore"/><child link="head_pan"/><origin xyz="0.09000 0.00000 0.02250" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.2" upper="1.2" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="head_tilt">
+    <inertial><origin xyz="0.00276 0.00000 -0.00100"/>
+      <mass value="0.0919"/><inertia ixx="1.324290e-04" ixy="0" ixz="0" iyy="1.404371e-04" iyz="0" izz="1.375895e-04"/></inertial>
+    <visual><geometry><box size="0.09752 0.09200 0.09400"/></geometry><origin xyz="0.00276 0.00000 -0.00100"/></visual>
+    <collision><geometry><box size="0.09752 0.09200 0.09400"/></geometry><origin xyz="0.00276 0.00000 -0.00100"/></collision>
+  </link>
+  <joint name="head_tilt" type="revolute">
+    <parent link="head_pan"/><child link="head_tilt"/><origin xyz="0.01360 0.00000 0.00800" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.7" upper="0.7" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="ear_L">
+    <inertial><origin xyz="-0.00000 0.00000 0.01400"/>
+      <mass value="0.0364"/><inertia ixx="5.041531e-06" ixy="0" ixz="0" iyy="6.895748e-06" iyz="0" izz="2.242027e-06"/></inertial>
+    <visual><geometry><box size="0.02600 0.00800 0.04000"/></geometry><origin xyz="-0.00000 0.00000 0.01400"/></visual>
+    <collision><geometry><box size="0.02600 0.00800 0.04000"/></geometry><origin xyz="-0.00000 0.00000 0.01400"/></collision>
+  </link>
+  <joint name="ear_L" type="revolute">
+    <parent link="head_tilt"/><child link="ear_L"/><origin xyz="0.01380 0.02000 0.03220" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.6" upper="0.6" effort="1.961" velocity="10.47"/>
+  </joint>
+  <link name="ear_R">
+    <inertial><origin xyz="-0.00000 0.00000 0.01400"/>
+      <mass value="0.0014"/><inertia ixx="1.881979e-07" ixy="0" ixz="0" iyy="2.574149e-07" iyz="0" izz="8.369377e-08"/></inertial>
+    <visual><geometry><box size="0.02600 0.00800 0.04000"/></geometry><origin xyz="-0.00000 0.00000 0.01400"/></visual>
+    <collision><geometry><box size="0.02600 0.00800 0.04000"/></geometry><origin xyz="-0.00000 0.00000 0.01400"/></collision>
+  </link>
+  <joint name="ear_R" type="revolute">
+    <parent link="head_tilt"/><child link="ear_R"/><origin xyz="0.01380 -0.02000 0.03220" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-0.6" upper="0.6" effort="1.961" velocity="10.47"/>
+    <mimic joint="ear_L" multiplier="1.0" offset="0.0"/>
+  </joint>
+  <link name="tail">
+    <inertial><origin xyz="-0.05650 0.00000 0.00000"/>
+      <mass value="0.0446"/><inertia ixx="2.409347e-06" ixy="0" ixz="0" iyy="6.117437e-05" iyz="0" izz="6.117437e-05"/></inertial>
+    <visual><geometry><box size="0.12700 0.01800 0.01800"/></geometry><origin xyz="-0.05650 0.00000 0.00000"/></visual>
+    <collision><geometry><box size="0.12700 0.01800 0.01800"/></geometry><origin xyz="-0.05650 0.00000 0.00000"/></collision>
+  </link>
+  <joint name="tail" type="revolute">
+    <parent link="torso_aft"/><child link="tail"/><origin xyz="-0.09000 0.00000 0.01125" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-1.0" upper="1.0" effort="1.961" velocity="10.47"/>
+  </joint>
+</robot>

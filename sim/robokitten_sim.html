@@ -1,0 +1,639 @@
+<title>RoboKitten Simulator</title>
+<style>
+  :root {
+    --bg: #e9edf2;
+    --panel: #ffffff;
+    --panel2: #f2f5f9;
+    --ink: #1a2130;
+    --muted: #5c6675;
+    --line: #d8dfe8;
+    --accent: #d9702f;      /* apricot — kitten / active */
+    --accent-soft: #f3d9c6;
+    --accent2: #0e9488;     /* teal — LED / telemetry */
+    --good: #2f9e5f;
+    --warn: #c9852a;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(20,28,45,.06), 0 8px 24px rgba(20,28,45,.08);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1117; --panel: #161b24; --panel2: #1b212c; --ink: #e9edf3;
+      --muted: #8b95a7; --line: #28303d; --accent: #ff9e5c; --accent-soft: #3a2c22;
+      --accent2: #3fd0c4; --good: #47c07d; --warn: #e0a94a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #e9edf2; --panel: #ffffff; --panel2: #f2f5f9; --ink: #1a2130;
+    --muted: #5c6675; --line: #d8dfe8; --accent: #d9702f; --accent-soft: #f3d9c6;
+    --accent2: #0e9488; --good: #2f9e5f; --warn: #c9852a;
+    --shadow: 0 1px 2px rgba(20,28,45,.06), 0 8px 24px rgba(20,28,45,.08);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1117; --panel: #161b24; --panel2: #1b212c; --ink: #e9edf3;
+    --muted: #8b95a7; --line: #28303d; --accent: #ff9e5c; --accent-soft: #3a2c22;
+    --accent2: #3fd0c4; --good: #47c07d; --warn: #e0a94a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px clamp(14px, 3vw, 28px) 40px; }
+
+  header.top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .logo {
+    width: 30px; height: 30px; border-radius: 8px; flex: none;
+    background: radial-gradient(circle at 32% 30%, var(--accent2) 0 3px, transparent 3.5px),
+                radial-gradient(circle at 68% 30%, var(--accent2) 0 3px, transparent 3.5px),
+                linear-gradient(160deg, var(--accent), #b95a22);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+  }
+  h1 { font-size: 1.28rem; margin: 0; letter-spacing: -.01em; font-weight: 650; }
+  .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+  .tag {
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--accent2); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px;
+    margin-left: auto; white-space: nowrap;
+  }
+
+  .layout { display: grid; grid-template-columns: 1fr 316px; gap: 18px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+  /* viewport is a deliberate single-world "scope" — dark in both themes so LED eyes read */
+  .stage {
+    position: relative; border-radius: var(--radius); overflow: hidden;
+    border: 1px solid var(--line); box-shadow: var(--shadow);
+    background: #0b0e14;
+    aspect-ratio: 16 / 10;
+  }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  .hud {
+    position: absolute; left: 12px; top: 11px; font-family: var(--mono);
+    font-size: .7rem; letter-spacing: .04em; color: #7f8ba0; text-transform: uppercase;
+    display: flex; gap: 8px; align-items: center; pointer-events: none;
+  }
+  .rec { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 15px 16px;
+  }
+  .panel + .panel { margin-top: 16px; }
+  .side .panel:first-child { margin-top: 0; }
+
+  .glabel {
+    font-family: var(--mono); font-size: .68rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 9px;
+  }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btns.three { grid-template-columns: 1fr 1fr 1fr; }
+  button.act {
+    font-family: var(--sans); font-size: .86rem; font-weight: 550; color: var(--ink);
+    background: var(--panel2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 9px 6px; cursor: pointer; transition: transform .06s, border-color .15s, background .15s;
+  }
+  button.act:hover { border-color: var(--accent); }
+  button.act:active { transform: translateY(1px); }
+  button.act.on {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 4px 14px -6px var(--accent);
+  }
+  button.act:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+
+  .slider { margin-top: 12px; }
+  .slider label { display: flex; justify-content: space-between; font-size: .82rem; color: var(--muted); margin-bottom: 5px; }
+  .slider label b { color: var(--ink); font-family: var(--mono); font-weight: 550; }
+  input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+  /* telemetry */
+  .tele { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; font-size: .82rem; }
+  .tele .row { display: flex; justify-content: space-between; gap: 8px; border-bottom: 1px dashed var(--line); padding-bottom: 5px; }
+  .tele .row span { color: var(--muted); }
+  .tele .row b { font-family: var(--mono); font-weight: 550; font-variant-numeric: tabular-nums; }
+  .phasebar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--panel2); overflow: hidden; border: 1px solid var(--line); }
+  .phasebar i { display: block; height: 100%; background: var(--accent2); width: 0; }
+
+  .signal {
+    grid-column: 1 / -1; margin-top: 4px; display: flex; align-items: center; gap: 10px;
+    background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--accent2);
+    border-radius: 8px; padding: 9px 11px;
+  }
+  .signal .emoji { font-size: 1.15rem; }
+  .signal .txt b { display: block; font-size: .82rem; }
+  .signal .txt span { font-size: .74rem; color: var(--muted); }
+
+  .legend { font-size: .78rem; color: var(--muted); }
+  .legend .lrow { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px dashed var(--line); }
+  .legend .lrow:last-child { border: 0; }
+  .legend .k { color: var(--ink); font-weight: 550; min-width: 74px; }
+
+  footer { color: var(--muted); font-size: .78rem; margin-top: 20px; text-align: center; }
+  footer code { font-family: var(--mono); color: var(--accent2); }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>RoboKitten&nbsp;— Motion &amp; Signal Simulator</h1>
+        <p class="sub">Phase-0 model · kitten-scale quadruped · 12-DOF legs + expressive tail / ears / eyes</p>
+      </div>
+    </div>
+    <span class="tag">side-view kinematic sim</span>
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <div class="stage">
+        <div class="hud"><span class="rec"></span><span id="hudMode">idle</span></div>
+        <canvas id="c"></canvas>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="panel">
+        <p class="glabel">Move</p>
+        <div class="btns three">
+          <button class="act" data-beh="idle">Idle</button>
+          <button class="act" data-beh="walk">Walk</button>
+          <button class="act" data-beh="trot">Trot</button>
+        </div>
+        <p class="glabel" style="margin-top:14px">Play</p>
+        <div class="btns">
+          <button class="act" data-beh="pounce">Pounce</button>
+          <button class="act" data-beh="bow">Play&nbsp;bow</button>
+        </div>
+        <p class="glabel" style="margin-top:14px">Rest</p>
+        <div class="btns">
+          <button class="act" data-beh="sit">Sit</button>
+          <button class="act" data-beh="sleep">Sleep</button>
+        </div>
+        <div class="slider">
+          <label>Gait speed <b id="spdVal">1.0×</b></label>
+          <input type="range" id="spd" min="0.5" max="1.6" step="0.05" value="1">
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Communicate (speak cat)</p>
+        <div class="btns">
+          <button class="act" id="blinkBtn">Slow&nbsp;blink</button>
+          <button class="act" id="purrBtn">Purr</button>
+        </div>
+        <div class="signal" style="margin-top:12px">
+          <span class="emoji" id="sigEmoji">🐾</span>
+          <span class="txt"><b id="sigTitle">Friendly &amp; relaxed</b><span id="sigDesc">Tail up, ears forward — safe to approach</span></span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Telemetry</p>
+        <div class="tele">
+          <div class="phasebar"><i id="phaseFill"></i></div>
+          <div class="row"><span>Behavior</span><b id="tBeh">idle</b></div>
+          <div class="row"><span>Speed</span><b id="tSpd">0.0</b></div>
+          <div class="row"><span>Front h</span><b id="tFh">74</b></div>
+          <div class="row"><span>Rear h</span><b id="tRh">74</b></div>
+          <div class="row"><span>Eyes</span><b id="tEye">100%</b></div>
+          <div class="row"><span>Tail</span><b id="tTail">up</b></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Cat-signal legend</p>
+        <div class="legend">
+          <div class="lrow"><span class="k">Tail up</span><span>friendly / confident</span></div>
+          <div class="lrow"><span class="k">Ears fwd</span><span>curious, playful</span></div>
+          <div class="lrow"><span class="k">Slow blink</span><span>trust &amp; affection</span></div>
+          <div class="lrow"><span class="k">Play bow</span><span>“let’s play”</span></div>
+          <div class="lrow"><span class="k">Ears back</span><span>wary — back off</span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    Kinematic preview for tuning shape &amp; motion vocabulary. Physics gait + hardware map live in <code>sim/robokitten_pybullet.py</code>.
+  </footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const cv = document.getElementById("c");
+  const ctx = cv.getContext("2d");
+  let W = 0, H = 0, DPR = 1;
+
+  function resize() {
+    const r = cv.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = r.width; H = r.height;
+    cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  new ResizeObserver(resize).observe(cv);
+  resize();
+
+  // ---- model constants (pixel-space, scaled to viewport height) ----
+  const M = {
+    H0: 74, BL: 128, L1: 44, L2: 46, HEADR: 34, NECK: 26,
+  };
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  // keyframe sampler: times[] ascending in [0,1], vals[] parallel
+  function kf(u, times, vals) {
+    if (u <= times[0]) return vals[0];
+    for (let i = 1; i < times.length; i++) {
+      if (u <= times[i]) {
+        const t = (u - times[i-1]) / (times[i] - times[i-1]);
+        const e = t * t * (3 - 2 * t); // smoothstep
+        return lerp(vals[i-1], vals[i], e);
+      }
+    }
+    return vals[vals.length - 1];
+  }
+
+  // ---- behavior definitions ----
+  // pose fields: fh (front height), rh (rear height), eye(0..1.2), ear(0 fwd .. 1 back),
+  //              tail (angle deg from body-back, +up), tailWag, curl(0..1)
+  const BEH = {
+    idle:  { locomotion:false, fh:1.0,  rh:1.0,  eye:1, ear:0.05, tail:52, wag:0.10, curl:0, footF:0, footR:0 },
+    walk:  { locomotion:true,  fh:0.94, rh:0.94, eye:1, ear:0.05, tail:32, wag:0.5,  curl:0,
+             cycle:0.92, duty:0.62, amp:44, lift:20, offs:{RN:0, FN:0.25, RF:0.5, FF:0.75} },
+    trot:  { locomotion:true,  fh:1.0,  rh:1.0,  eye:1, ear:0.02, tail:24, wag:0.8,  curl:0,
+             cycle:0.52, duty:0.5,  amp:54, lift:26, offs:{FN:0, RF:0, FF:0.5, RN:0.5} },
+    bow:   { locomotion:false, fh:0.46, rh:1.10, eye:1, ear:0.0,  tail:60, wag:0.9,  curl:0, footF:16, footR:-4 },
+    sit:   { locomotion:false, fh:1.02, rh:0.40, eye:1, ear:0.05, tail:44, wag:0.15, curl:0.5, footF:0, footR:24 },
+    sleep: { locomotion:false, fh:0.32, rh:0.32, eye:0, ear:0.55, tail:30, wag:0.02, curl:1, footF:-10, footR:10 },
+  };
+
+  const state = {
+    beh: "idle", spd: 1.0, purr: false,
+    blinkT: -1,           // countdown for a triggered slow-blink (seconds)
+    pounceT: -1,          // pounce timeline clock (seconds), -1 = inactive
+    gphase: 0,            // gait phase 0..1
+    scroll: 0,            // ground scroll px
+    autoBlink: reduce ? -1 : 3 + Math.random() * 4,
+  };
+
+  // current (smoothed) pose
+  const pose = { fh: M.H0, rh: M.H0, eye: 1, ear: 0.05, tail: 52, curl: 0, launchY: 0, launchX: 0 };
+
+  // ---- 2-link leg IK (screen coords, y down). bend: +1 knee back, -1 knee fwd ----
+  function ik(hx, hy, fx, fy, bend) {
+    let dx = fx - hx, dy = fy - hy;
+    let d = Math.hypot(dx, dy);
+    d = clamp(d, Math.abs(M.L1 - M.L2) + 1, M.L1 + M.L2 - 1);
+    const a = Math.atan2(dy, dx);
+    let c = (d * d + M.L1 * M.L1 - M.L2 * M.L2) / (2 * d * M.L1);
+    c = clamp(c, -1, 1);
+    const A = Math.acos(c);
+    const ha = a + bend * A;
+    return { kx: hx + M.L1 * Math.cos(ha), ky: hy + M.L1 * Math.sin(ha) };
+  }
+
+  // gait foot offset for a leg phase -> {dx, lift}
+  function gaitFoot(phase, g) {
+    phase = ((phase % 1) + 1) % 1;
+    if (phase < g.duty) {                       // stance: planted, slides back
+      const s = phase / g.duty;
+      return { dx: lerp(g.amp / 2, -g.amp / 2, s), lift: 0 };
+    }
+    const s = (phase - g.duty) / (1 - g.duty);  // swing: lifts, returns fwd
+    return { dx: lerp(-g.amp / 2, g.amp / 2, s), lift: g.lift * Math.sin(Math.PI * s) };
+  }
+
+  // ---- main update ----
+  function update(dt) {
+    const b = BEH[state.beh] || BEH.idle;
+
+    // targets from behavior
+    let tFh = M.H0 * b.fh, tRh = M.H0 * b.rh, tEye = b.eye, tEar = b.ear, tTail = b.tail, tCurl = b.curl;
+    let launchY = 0, launchX = 0;
+
+    // pounce timeline overrides height/launch
+    if (state.pounceT >= 0) {
+      const T = 2.0;
+      state.pounceT += dt;
+      const u = state.pounceT / T;
+      const H0 = M.H0;
+      tFh = kf(u, [0,.2,.45,.58,.82,.9,1], [H0, H0*.5, H0*.55, H0*1.15, H0*1.0, H0*.6, H0]);
+      tRh = kf(u, [0,.2,.45,.58,.82,.9,1], [H0, H0*.5, H0*.55, H0*1.05, H0*.9, H0*.55, H0]);
+      launchY = kf(u, [0,.25,.45,.58,.7,.82,.9,1], [0,0,0,-72,-42,0,9,0]);
+      launchX = kf(u, [0,.45,.58,.7,.82,1], [0,-6,20,34,22,0]);
+      if (u > .2 && u < .46) launchX += 3 * Math.sin(state.pounceT * 42); // rear wiggle
+      tEye = kf(u, [0,.2,.9,1], [1,1.15,1.15,1]);
+      tTail = 58; tEar = 0;
+      if (u >= 1) { state.pounceT = -1; state.beh = "idle"; syncButtons(); }
+    }
+
+    // smooth toward targets
+    const k = 1 - Math.exp(-dt / 0.12);
+    pose.fh += (tFh - pose.fh) * k;
+    pose.rh += (tRh - pose.rh) * k;
+    pose.ear += (tEar - pose.ear) * k;
+    pose.tail += (tTail - pose.tail) * k;
+    pose.curl += (tCurl - pose.curl) * k;
+    pose.launchY += (launchY - pose.launchY) * k;
+    pose.launchX += (launchX - pose.launchX) * k;
+
+    // eye: triggered slow-blink overrides toward-target
+    if (state.blinkT >= 0) {
+      state.blinkT -= dt;
+      const phase = clamp(1 - state.blinkT / 1.1, 0, 1); // 0 -> 1 over 1.1s
+      pose.eye = 1 - Math.sin(phase * Math.PI);          // open -> closed -> open
+      if (state.blinkT <= 0) { state.blinkT = -1; pose.eye = tEye; }
+    } else {
+      pose.eye += (tEye - pose.eye) * k;
+      // ambient auto-blink when idle-ish
+      if (!reduce && state.pounceT < 0) {
+        state.autoBlink -= dt;
+        if (state.autoBlink <= 0) { triggerBlink(true); state.autoBlink = 4 + Math.random() * 5; }
+      }
+    }
+
+    // gait clock + ground scroll
+    if (b.locomotion) {
+      const cyc = b.cycle / state.spd;
+      state.gphase = (state.gphase + dt / cyc) % 1;
+      const scrollSpeed = b.amp / (b.duty * cyc); // match planted-foot slide (no slip)
+      state.scroll = (state.scroll + scrollSpeed * dt) % 48;
+    } else {
+      state.gphase = 0;
+    }
+  }
+
+  // ---- draw ----
+  function draw() {
+    const cx = W * 0.5, groundY = H * 0.74;
+    // scale whole scene a touch on small viewports
+    const S = clamp(H / 400, 0.7, 1.25);
+
+    // background scope
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, "#0e131c"); g.addColorStop(1, "#080a0f");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+    // grid
+    ctx.strokeStyle = "rgba(120,140,170,.08)"; ctx.lineWidth = 1;
+    const gs = 48 * S;
+    ctx.beginPath();
+    for (let x = -(state.scroll * S) % gs; x < W; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+    for (let y = groundY % gs; y > 0; y -= gs) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    for (let y = groundY; y < H; y += gs) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    ctx.stroke();
+
+    // ground line
+    ctx.strokeStyle = "rgba(63,208,196,.35)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(W, groundY); ctx.stroke();
+
+    ctx.save();
+    ctx.translate(cx + pose.launchX * S, 0);
+    ctx.scale(S, S);
+    const y0 = (groundY + pose.launchY) / S;   // undo scale for consistent geometry
+    const purrJ = (state.purr && !reduce) ? Math.sin(performance.now() / 22) * 0.8 : 0;
+
+    // hips
+    const fh = pose.fh, rh = pose.rh;
+    const frontHip = { x: M.BL / 2, y: y0 - fh + purrJ };
+    const rearHip  = { x: -M.BL / 2, y: y0 - rh + purrJ };
+    const ang = Math.atan2(frontHip.y - rearHip.y, frontHip.x - rearHip.x);
+
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,.28)";
+    ctx.beginPath();
+    ctx.ellipse(0, y0 + 4, M.BL * 0.62, 9, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    const t = performance.now() / 1000;
+    const wag = (BEH[state.beh] || BEH.idle).wag * (reduce ? 0.3 : 1);
+
+    // foot positions per leg
+    const b = BEH[state.beh] || BEH.idle;
+    function footFor(hip, key, staticOff) {
+      if (b.locomotion) {
+        const f = gaitFoot(state.gphase + (b.offs[key] || 0), b);
+        return { x: hip.x + f.dx, y: y0 - f.lift };
+      }
+      return { x: hip.x + staticOff, y: y0 };
+    }
+    const feet = {
+      FF: footFor(frontHip, "FF", (b.footF || 0)),
+      FN: footFor(frontHip, "FN", (b.footF || 0)),
+      RF: footFor(rearHip,  "RF", (b.footR || 0)),
+      RN: footFor(rearHip,  "RN", (b.footR || 0)),
+    };
+
+    const FUR = "#cdd2dc", FUR_D = "#a7adba", PAD = "#e8823c";
+    function drawLeg(hip, foot, bend, dim) {
+      const kn = ik(hip.x, hip.y, foot.x, foot.y, bend);
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.globalAlpha = dim ? 0.5 : 1;
+      ctx.strokeStyle = dim ? FUR_D : FUR;
+      ctx.lineWidth = dim ? 12 : 14;
+      ctx.beginPath(); ctx.moveTo(hip.x, hip.y); ctx.lineTo(kn.kx, kn.ky); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+      // paw
+      ctx.fillStyle = dim ? FUR_D : FUR;
+      ctx.beginPath(); ctx.ellipse(foot.x + 4, foot.y, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // far legs (behind body)
+    drawLeg({x: frontHip.x - 8, y: frontHip.y}, {x: feet.FF.x - 8, y: feet.FF.y}, +1, true);
+    drawLeg({x: rearHip.x - 8, y: rearHip.y},  {x: feet.RF.x - 8, y: feet.RF.y}, -1, true);
+
+    // tail (behind body) — chain of segments
+    drawTail(rearHip, ang, t, wag);
+
+    // body capsule
+    ctx.lineCap = "round"; ctx.strokeStyle = FUR; ctx.lineWidth = 56;
+    ctx.beginPath(); ctx.moveTo(rearHip.x, rearHip.y - 6); ctx.lineTo(frontHip.x, frontHip.y - 6); ctx.stroke();
+    // belly shading
+    ctx.strokeStyle = "rgba(255,255,255,.06)"; ctx.lineWidth = 30;
+    ctx.beginPath(); ctx.moveTo(rearHip.x, rearHip.y - 12); ctx.lineTo(frontHip.x, frontHip.y - 12); ctx.stroke();
+
+    // near legs (in front of body)
+    drawLeg({x: rearHip.x + 6, y: rearHip.y},  {x: feet.RN.x + 6, y: feet.RN.y}, -1, false);
+    drawLeg({x: frontHip.x + 6, y: frontHip.y},{x: feet.FN.x + 6, y: feet.FN.y}, +1, false);
+
+    // head
+    drawHead(frontHip, ang, t, wag);
+
+    ctx.restore();
+
+    // purr rings overlay (screen space)
+    if (state.purr) {
+      const rr = (performance.now() / 700) % 1;
+      ctx.strokeStyle = `rgba(63,208,196,${0.35 * (1 - rr)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx + (M.BL/2 + 60) * (H/400 > 1 ? 1 : 1), (groundY) - pose.fh - 10, 14 + rr * 22, -0.6, 0.6);
+      ctx.stroke();
+    }
+  }
+
+  function drawTail(rearHip, ang, t, wag) {
+    const FUR = "#c3c8d3";
+    const base = -Math.PI + ang;                 // pointing back
+    const up = pose.tail * Math.PI / 180;         // raise
+    const segs = 6;
+    let x = rearHip.x, y = rearHip.y - 8;
+    let a = base - up;                            // start angle (back & up)
+    ctx.lineCap = "round"; ctx.strokeStyle = FUR;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    for (let i = 0; i < segs; i++) {
+      const len = 15 - i * 1.2;
+      const curl = pose.curl * 0.5;               // curl bends each segment
+      const sway = Math.sin(t * 6 + i * 0.6) * wag * 0.18;
+      a += (-0.12 - curl) + sway;                 // gentle upward/curl arc + wag
+      x += Math.cos(a) * len; y += Math.sin(a) * len;
+      ctx.lineWidth = 12 - i * 1.4;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  function drawHead(frontHip, ang, t, wag) {
+    const dirx = Math.cos(ang), diry = Math.sin(ang);
+    const upx = Math.sin(ang), upy = -Math.cos(ang);
+    const hx = frontHip.x + dirx * M.NECK - upx * M.HEADR * 0.5;
+    const hy = frontHip.y + diry * M.NECK - upy * M.HEADR * 0.5 - 6;
+    const R = M.HEADR;
+    const FUR = "#cdd2dc", INNER = "#e8823c", LED = "#4be3d6";
+
+    // ears (far then near)
+    function ear(sign, dim) {
+      const ex = hx + (dirx * 6 + upx * (R * 0.7)) + sign * 8;
+      const ey = hy + (diry * 6 + upy * (R * 0.7));
+      const back = pose.ear;                       // 0 fwd, 1 back
+      const tip = -0.5 - back * 0.9;               // rotate back when flattened
+      ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang + tip);
+      ctx.globalAlpha = dim ? 0.55 : 1;
+      ctx.fillStyle = FUR;
+      ctx.beginPath(); ctx.moveTo(-9, 6); ctx.lineTo(0, -20 + back * 10); ctx.lineTo(10, 6); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = INNER;
+      ctx.beginPath(); ctx.moveTo(-4, 3); ctx.lineTo(0, -12 + back * 8); ctx.lineTo(5, 3); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1; ctx.restore();
+    }
+    ear(-1, true);
+
+    // head circle + muzzle
+    ctx.fillStyle = FUR;
+    ctx.beginPath(); ctx.arc(hx, hy, R, 0, Math.PI * 2); ctx.fill();
+    // muzzle bump toward front
+    ctx.beginPath(); ctx.ellipse(hx + dirx * R * 0.7, hy + diry * R * 0.7 + 6, R * 0.5, R * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+
+    ear(1, false);
+
+    // LED eye (big, baby-schema) on front-upper face
+    const eyx = hx + dirx * R * 0.42 + upx * 2;
+    const eyy = hy + diry * R * 0.42 - 4;
+    const open = clamp(pose.eye, 0, 1.2);
+    const eh = 12 * Math.min(open, 1);
+    // glow
+    ctx.save();
+    ctx.shadowColor = LED; ctx.shadowBlur = 14 * Math.min(open, 1);
+    ctx.fillStyle = LED;
+    ctx.beginPath(); ctx.ellipse(eyx, eyy, 9, Math.max(1, eh), 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (open > 0.15) {
+      ctx.fillStyle = "#0a1a1a";
+      ctx.beginPath(); ctx.ellipse(eyx + 2, eyy, 3, Math.max(1, eh * 0.7), 0, 0, Math.PI * 2); ctx.fill();
+    }
+    // eyelid (fur) closing from top when blinking
+    if (open < 1) {
+      ctx.fillStyle = FUR;
+      ctx.beginPath();
+      ctx.ellipse(eyx, eyy - eh, 10, 12 * (1 - Math.min(open,1)) + 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // nose
+    ctx.fillStyle = INNER;
+    ctx.beginPath(); ctx.ellipse(hx + dirx * R * 0.95, hy + diry * R * 0.95 + 8, 3.2, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+    // whiskers
+    ctx.strokeStyle = "rgba(220,225,235,.5)"; ctx.lineWidth = 1;
+    const wnx = hx + dirx * R * 0.9, wny = hy + diry * R * 0.9 + 8;
+    for (const d of [-6, 0, 6]) {
+      ctx.beginPath(); ctx.moveTo(wnx, wny + 2); ctx.lineTo(wnx + 26, wny + d); ctx.stroke();
+    }
+  }
+
+  // ---- telemetry / signal ----
+  const el = id => document.getElementById(id);
+  function catSignal() {
+    if (state.beh === "sleep") return ["😴", "Resting", "Curled up, eyes closed — leave me be"];
+    if (state.beh === "bow" || state.beh === "pounce" || state.pounceT >= 0)
+      return ["🤸", "“Let’s play!”", "Play bow / pounce — an invitation to chase"];
+    if (state.beh === "sit") return ["🐈", "Calm & present", "Sitting, tail curled — content"];
+    if (pose.ear > 0.4) return ["🙀", "Wary", "Ears back — give space, approach slowly"];
+    if (state.blinkT >= 0) return ["😌", "Trust", "Slow blink — the feline “I love you”"];
+    return ["🐾", "Friendly & relaxed", "Tail up, ears forward — safe to approach"];
+  }
+  let telAcc = 0;
+  function telemetry(dt) {
+    telAcc += dt; if (telAcc < 0.1) return; telAcc = 0;
+    el("tBeh").textContent = state.pounceT >= 0 ? "pounce" : state.beh;
+    el("hudMode").textContent = state.pounceT >= 0 ? "pounce" : state.beh;
+    const b = BEH[state.beh] || BEH.idle;
+    const spd = b.locomotion ? (b.amp / (b.cycle / state.spd) / 40) : 0;
+    el("tSpd").textContent = spd.toFixed(1);
+    el("tFh").textContent = Math.round(pose.fh);
+    el("tRh").textContent = Math.round(pose.rh);
+    el("tEye").textContent = Math.round(clamp(pose.eye,0,1) * 100) + "%";
+    el("tTail").textContent = pose.tail > 45 ? "up" : pose.tail > 20 ? "mid" : "low";
+    el("phaseFill").style.width = (state.gphase * 100).toFixed(0) + "%";
+    const [emo, ti, de] = catSignal();
+    el("sigEmoji").textContent = emo; el("sigTitle").textContent = ti; el("sigDesc").textContent = de;
+  }
+
+  // ---- controls ----
+  function syncButtons() {
+    document.querySelectorAll("button[data-beh]").forEach(btn => {
+      btn.classList.toggle("on", btn.dataset.beh === state.beh && state.pounceT < 0);
+    });
+  }
+  document.querySelectorAll("button[data-beh]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const beh = btn.dataset.beh;
+      if (beh === "pounce") { state.pounceT = 0; state.beh = "pounce"; }
+      else { state.pounceT = -1; state.beh = beh; }
+      syncButtons();
+    });
+  });
+  function triggerBlink(auto) { if (state.blinkT < 0) state.blinkT = 1.1; }
+  el("blinkBtn").addEventListener("click", () => triggerBlink(false));
+  el("purrBtn").addEventListener("click", () => {
+    state.purr = !state.purr;
+    el("purrBtn").classList.toggle("on", state.purr);
+  });
+  el("spd").addEventListener("input", e => {
+    state.spd = parseFloat(e.target.value);
+    el("spdVal").textContent = state.spd.toFixed(1) + "×";
+  });
+
+  // start in idle
+  state.beh = "idle"; syncButtons();
+
+  // ---- loop ----
+  let last = performance.now();
+  function frame(now) {
+    let dt = (now - last) / 1000; last = now;
+    dt = clamp(dt, 0, 0.05);
+    update(dt);
+    draw();
+    telemetry(dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>

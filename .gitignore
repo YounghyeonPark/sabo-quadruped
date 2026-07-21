@@ -1,0 +1,36 @@
+# ------------------------------------------------------------------ personal / private
+# NEVER publish: 24 GB of personal photos/video of the owner's cat.
+sami_photos/
+
+# ------------------------------------------------------------------ generated artifacts
+# Regenerated from the source of truth by the toolchain — do not commit binaries.
+#   cad.export -> cad/out/    sim.meshes -> sim/meshes/    mj_emulate -> sim/out/
+#   analysis.platform_report -> docs/out/
+cad/out/
+sim/out/
+sim/meshes/
+docs/out/
+
+# trained vision models (built on the Jetson / GPU; large binaries)
+vision/models/*.engine
+vision/models/*.onnx
+vision/models/*.pt
+
+# ------------------------------------------------------------------ Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.env
+
+# ------------------------------------------------------------------ tooling / OS
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

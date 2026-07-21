@@ -1,0 +1,17 @@
+Sabo — a low-cost, quiet, compliant 3D-printed quadruped
+Copyright 2026 The Sabo Project authors
+
+This product includes software developed for the Sabo project, licensed under the
+Apache License, Version 2.0.
+
+--------------------------------------------------------------------------------
+Third-party components (retain their own licenses):
+
+* vision/models/haarcascade_frontalcatface_extended.xml
+  OpenCV frontal cat-face Haar cascade. Contributed by Joseph Howse
+  (OpenCV for Secret Agents, Packt Publishing). Distributed under the OpenCV
+  (3-clause BSD) license; see the notice in the file header.
+
+Python dependencies are used under their respective licenses (see requirements.txt),
+including build123d (Apache-2.0), MuJoCo (Apache-2.0), trimesh (MIT), NumPy (BSD),
+and matplotlib (PSF/BSD-style).

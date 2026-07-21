@@ -1,0 +1,8 @@
+# RoboKitten Phase-0 — the autonomous brain + simulated cat + owner dashboard.
+# The brain/ package itself is pure standard library; only the dashboard needs Flask.
+flask>=3.0
+
+# --- future phases (not needed for Phase 0) ---
+# pybullet>=3.2      # physics view (sim/robokitten_pybullet.py)
+# piper-tts          # real TTS for brain/voice.py PiperVoice backend
+# pytest>=8.0        # to run tests/  (dev only)

@@ -1,0 +1,8 @@
+# Normalize line endings to LF for text; treat known binaries as binary.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.stl binary
+*.step binary
+*.gif binary
+*.xml text eol=lf

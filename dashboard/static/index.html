@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RoboKitten — Live Brain</title>
+<style>
+  :root {
+    --bg:#e9edf2; --panel:#fff; --panel2:#f2f5f9; --ink:#1a2130; --muted:#5c6675;
+    --line:#d8dfe8; --accent:#d9702f; --accent2:#0e9488; --good:#2f9e5f; --warn:#c9852a;
+    --bad:#d1483f; --radius:14px; --shadow:0 1px 2px rgba(20,28,45,.06),0 8px 24px rgba(20,28,45,.08);
+    --mono:ui-monospace,"Cascadia Code","SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0e1117;--panel:#161b24;--panel2:#1b212c;--ink:#e9edf3;--muted:#8b95a7;
+    --line:#28303d;--accent:#ff9e5c;--accent2:#3fd0c4;--good:#47c07d;--warn:#e0a94a;--bad:#e5544b;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px clamp(14px,3vw,28px) 40px}
+  header.top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .logo{width:30px;height:30px;border-radius:8px;flex:none;
+    background:radial-gradient(circle at 32% 30%,var(--accent2) 0 3px,transparent 3.5px),
+      radial-gradient(circle at 68% 30%,var(--accent2) 0 3px,transparent 3.5px),
+      linear-gradient(160deg,var(--accent),#b95a22);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+  h1{font-size:1.28rem;margin:0;letter-spacing:-.01em;font-weight:650}
+  .sub{color:var(--muted);font-size:.9rem;margin:0}
+  .tag{font-family:var(--mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--accent2);border:1px solid var(--line);border-radius:999px;padding:3px 9px;margin-left:auto}
+  .conn{width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block;margin-right:5px}
+  .conn.ok{background:var(--good)}
+
+  .layout{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start}
+  @media (max-width:860px){.layout{grid-template-columns:1fr}}
+  .stage{position:relative;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);
+    box-shadow:var(--shadow);background:#0b0e14;aspect-ratio:3/2}
+  .stage canvas{display:block;width:100%;height:100%}
+  .hud{position:absolute;left:12px;top:11px;font-family:var(--mono);font-size:.7rem;
+    letter-spacing:.04em;color:#7f8ba0;text-transform:uppercase;display:flex;gap:10px;pointer-events:none}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    box-shadow:var(--shadow);padding:15px 16px}
+  .panel+.panel{margin-top:16px}
+  .glabel{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin:0 0 9px}
+
+  .moodrow{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .badge{font-weight:650;font-size:1.05rem;padding:4px 12px;border-radius:999px;color:#fff;text-transform:capitalize}
+  .beh{color:var(--muted);font-size:.9rem}
+
+  .meter{margin-top:6px}
+  .meter label{display:flex;justify-content:space-between;font-size:.82rem;color:var(--muted);margin-bottom:5px}
+  .meter label b{color:var(--ink);font-family:var(--mono);font-weight:550}
+  .bar{height:9px;border-radius:5px;background:var(--panel2);overflow:hidden;border:1px solid var(--line)}
+  .bar i{display:block;height:100%;width:0;transition:width .15s,background .3s}
+
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  button.act{font-family:var(--sans);font-size:.86rem;font-weight:550;color:var(--ink);
+    background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 6px;
+    cursor:pointer;transition:transform .06s,border-color .15s}
+  button.act:hover{border-color:var(--accent)}
+  button.act:active{transform:translateY(1px)}
+
+  .tele{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:.82rem}
+  .tele .row{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dashed var(--line);padding-bottom:5px}
+  .tele .row span{color:var(--muted)}
+  .tele .row b{font-family:var(--mono);font-weight:550;font-variant-numeric:tabular-nums}
+
+  .feed{max-height:260px;overflow:auto;font-size:.82rem;display:flex;flex-direction:column-reverse}
+  .feed .e{display:flex;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
+  .feed .e .ts{font-family:var(--mono);color:var(--muted);font-size:.72rem;min-width:44px}
+  .feed .e.alert .tx{color:var(--bad);font-weight:550}
+  .feed .e.mood .tx{color:var(--accent2)}
+  .feed .e.owner .tx{color:var(--warn)}
+  footer{color:var(--muted);font-size:.78rem;margin-top:20px;text-align:center}
+  footer code{font-family:var(--mono);color:var(--accent2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>RoboKitten — Live Brain</h1>
+        <p class="sub">Phase-0 · autonomous mood · perception · behavior — reacting to a simulated cat</p>
+      </div>
+    </div>
+    <span class="tag"><span class="conn" id="conn"></span><span id="connTxt">connecting…</span></span>
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <div class="stage">
+        <div class="hud"><span id="hudMood">—</span><span id="hudBeh"></span><span id="hudT"></span></div>
+        <canvas id="c"></canvas>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="panel">
+        <p class="glabel">Kitten state</p>
+        <div class="moodrow"><span class="badge" id="badge">—</span><span class="beh" id="beh"></span></div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Cat — Sami (the north star)</p>
+        <div class="meter">
+          <label>Trust <b id="trustV">0%</b></label>
+          <div class="bar"><i id="trustBar"></i></div>
+        </div>
+        <div class="meter">
+          <label>Startle <b id="startV">0%</b></label>
+          <div class="bar"><i id="startBar" style="background:var(--bad)"></i></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Owner actions</p>
+        <div class="btns">
+          <button class="act" data-act="call">📣 Call</button>
+          <button class="act" data-act="toss_toy">🧶 Toss toy</button>
+          <button class="act" data-act="wake">☀️ Wake</button>
+          <button class="act" data-act="nap">🌙 Nap</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Telemetry</p>
+        <div class="tele">
+          <div class="row"><span>Cat dist</span><b id="tDist">—</b></div>
+          <div class="row"><span>Cat mode</span><b id="tCatMode">—</b></div>
+          <div class="row"><span>Gait</span><b id="tGait">—</b></div>
+          <div class="row"><span>Ears</span><b id="tEars">—</b></div>
+          <div class="row"><span>Tail</span><b id="tTail">—</b></div>
+          <div class="row"><span>Purr</span><b id="tPurr">—</b></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <p class="glabel">Event feed</p>
+        <div class="feed" id="feed"></div>
+      </div>
+    </aside>
+  </div>
+  <footer>Portable brain in <code>brain/</code> · simulated cat in <code>sim/</code> · swap the HAL for a Pi to run this on real hardware.</footer>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+  let W=0,H=0,DPR=1, snap=null;
+  const seen = new Set();
+
+  const MOOD_COLOR = {sleepy:"#8b95a7", calm:"#0e9488", curious:"#5b9bd5",
+                      playful:"#d9702f", scared:"#d1483f"};
+
+  function resize(){
+    const r=cv.getBoundingClientRect(); DPR=Math.min(devicePixelRatio||1,2);
+    W=r.width;H=r.height; cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  new ResizeObserver(resize).observe(cv); resize();
+
+  // ---- world<->pixel transform (y up) ----
+  function tf(bounds){
+    const [x0,x1,y0,y1]=bounds, pad=26;
+    const s=Math.min((W-2*pad)/(x1-x0),(H-2*pad)/(y1-y0));
+    const cx=W/2, cy=H/2, mx=(x0+x1)/2, my=(y0+y1)/2;
+    return {s, px:(x,y)=>[cx+(x-mx)*s, cy-(y-my)*s]};
+  }
+
+  const lerpC=(a,b,t)=>{ // hex lerp
+    const pa=[1,3,5].map(i=>parseInt(a.substr(i,2),16));
+    const pb=[1,3,5].map(i=>parseInt(b.substr(i,2),16));
+    return "#"+pa.map((v,i)=>Math.round(v+(pb[i]-v)*t).toString(16).padStart(2,"0")).join("");
+  };
+
+  function drawCritter(px, x, y, heading, len, wid, fill, opts){
+    const [cx,cy]=px(x,y);
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(-heading); // screen y is down
+    // tail (behind)
+    if(opts.tail!==false){
+      ctx.strokeStyle=fill; ctx.lineWidth=Math.max(3,wid*0.18); ctx.lineCap="round";
+      const up=opts.tailUp?-wid*0.7:0;
+      ctx.beginPath(); ctx.moveTo(-len*0.5,0);
+      ctx.quadraticCurveTo(-len*0.85,up, -len*1.05, up*1.6 - (opts.tailUp?wid*0.4:0));
+      ctx.stroke();
+    }
+    // body
+    ctx.fillStyle=fill; ctx.beginPath();
+    ctx.ellipse(0,0,len*0.5,wid*0.5,0,0,Math.PI*2); ctx.fill();
+    // ears (front)
+    const flat=opts.ears==="flat";
+    ctx.fillStyle=opts.earFill||fill;
+    for(const s of [-1,1]){
+      ctx.save(); ctx.translate(len*0.42, s*wid*0.32);
+      ctx.rotate(flat? s*1.4 : s*0.3);
+      ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(wid*0.34,-wid*0.05*s);
+      ctx.lineTo(wid*0.05,wid*0.34*s); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    // eyes (front, kitten only)
+    if(opts.eyes!=null){
+      const o=Math.max(0.05,Math.min(1,opts.eyes))*(opts.blink?0.15:1);
+      ctx.fillStyle="#4be3d6"; ctx.shadowColor="#4be3d6"; ctx.shadowBlur=8*o;
+      for(const s of [-1,1]){
+        ctx.beginPath();
+        ctx.ellipse(len*0.34, s*wid*0.18, wid*0.11, wid*0.11*o+0.5,0,0,Math.PI*2); ctx.fill();
+      }
+      ctx.shadowBlur=0;
+    }
+    // hiss marker
+    if(opts.hiss){ ctx.fillStyle="#fff"; ctx.font="bold 13px "+getComputedStyle(document.body).fontFamily;
+      ctx.fillText("!", len*0.55, -wid*0.4); }
+    ctx.restore();
+  }
+
+  function render(){
+    if(!snap){return;}
+    ctx.clearRect(0,0,W,H);
+    const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#0e131c"); g.addColorStop(1,"#080a0f");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    const {s,px}=tf(snap.bounds);
+    // floor grid
+    ctx.strokeStyle="rgba(120,140,170,.08)"; ctx.lineWidth=1;
+    const [x0,x1,y0,y1]=snap.bounds;
+    ctx.beginPath();
+    for(let gx=Math.ceil(x0*4)/4; gx<=x1; gx+=0.25){const [ax,ay]=px(gx,y0);const[bx,by]=px(gx,y1);ctx.moveTo(ax,ay);ctx.lineTo(bx,by);}
+    for(let gy=Math.ceil(y0*4)/4; gy<=y1; gy+=0.25){const [ax,ay]=px(x0,gy);const[bx,by]=px(x1,gy);ctx.moveTo(ax,ay);ctx.lineTo(bx,by);}
+    ctx.stroke();
+    // room border
+    const [rx0,ry0]=px(x0,y1),[rx1,ry1]=px(x1,y0);
+    ctx.strokeStyle="rgba(63,208,196,.35)"; ctx.lineWidth=2; ctx.strokeRect(rx0,ry0,rx1-rx0,ry1-ry0);
+
+    // toy
+    if(snap.toy){const [tx,ty]=px(snap.toy.x,snap.toy.y);
+      ctx.fillStyle="#e0a94a"; ctx.beginPath(); ctx.arc(tx,ty,6,0,Math.PI*2); ctx.fill();}
+
+    // cat — colored by trust (red -> green)
+    const cat=snap.cat, trust=cat.trust;
+    const catCol=lerpC("#d1483f","#47c07d",trust);
+    drawCritter(px, cat.x, cat.y, cat.heading, 0.28*s, 0.16*s, catCol,
+      {ears:cat.ears, hiss:cat.hissing, tail:true, tailUp:trust>0.6, earFill:catCol});
+
+    // kitten
+    const k=snap.kitten, mood=snap.brain.mood;
+    drawCritter(px, k.x, k.y, k.heading, 0.23*s, 0.12*s, "#cdd2dc",
+      {ears:k.ears, eyes:k.eyes, blink:k.blink, tail:true,
+       tailUp:k.tail==="up", earFill:"#e8823c"});
+
+    // sightline kitten->cat if present
+    if(snap.brain.cat.present){
+      const [kx,ky]=px(k.x,k.y),[cx2,cy2]=px(cat.x,cat.y);
+      ctx.strokeStyle="rgba(255,255,255,.10)"; ctx.setLineDash([4,5]); ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(kx,ky); ctx.lineTo(cx2,cy2); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // labels
+    ctx.font="11px "+getComputedStyle(document.body).fontFamily; ctx.textAlign="center";
+    const [klx,kly]=px(k.x,k.y); ctx.fillStyle="#cdd2dc"; ctx.fillText("kitten",klx,kly-0.12*s-8);
+    const [clx,cly]=px(cat.x,cat.y); ctx.fillStyle=catCol; ctx.fillText("Sami",clx,cly-0.16*s-8);
+    ctx.textAlign="left";
+  }
+
+  // ---- DOM updates ----
+  const el=id=>document.getElementById(id);
+  function updateUI(){
+    const b=snap.brain, mood=b.mood, col=MOOD_COLOR[mood]||"#888";
+    el("badge").textContent=mood; el("badge").style.background=col;
+    el("beh").textContent="· "+b.behavior;
+    el("hudMood").textContent=mood; el("hudBeh").textContent=b.behavior;
+    el("hudT").textContent="t="+snap.t+"s";
+    const tr=snap.cat.trust, st=snap.cat.startle;
+    el("trustV").textContent=Math.round(tr*100)+"%";
+    el("trustBar").style.width=(tr*100)+"%";
+    el("trustBar").style.background=lerpC("#d1483f","#47c07d",tr);
+    el("startV").textContent=Math.round(st*100)+"%";
+    el("startBar").style.width=(st*100)+"%";
+    el("tDist").textContent=b.cat.present? b.cat.distance+" m":"—";
+    el("tCatMode").textContent=snap.cat.mode;
+    el("tGait").textContent=snap.kitten.gait;
+    el("tEars").textContent=snap.kitten.ears;
+    el("tTail").textContent=snap.kitten.tail;
+    el("tPurr").textContent=snap.kitten.purr?"on":"off";
+    // events
+    const feed=el("feed");
+    for(const e of snap.events){
+      if(seen.has(e.id)) continue; seen.add(e.id);
+      const div=document.createElement("div"); div.className="e "+e.kind;
+      div.innerHTML=`<span class="ts">${e.t}s</span><span class="tx">${e.text}</span>`;
+      feed.prepend(div);
+      while(feed.children.length>80) feed.removeChild(feed.lastChild);
+    }
+  }
+
+  // ---- SSE ----
+  const es=new EventSource("/events");
+  es.onopen=()=>{el("conn").classList.add("ok"); el("connTxt").textContent="live";};
+  es.onerror=()=>{el("conn").classList.remove("ok"); el("connTxt").textContent="reconnecting…";};
+  es.onmessage=ev=>{ snap=JSON.parse(ev.data); updateUI(); render(); };
+  addEventListener("resize",()=>{resize();render();});
+
+  // ---- buttons ----
+  document.querySelectorAll("button[data-act]").forEach(btn=>{
+    btn.addEventListener("click",()=>fetch("/action/"+btn.dataset.act,{method:"POST"}));
+  });
+})();
+</script>
+</body>
+</html>
