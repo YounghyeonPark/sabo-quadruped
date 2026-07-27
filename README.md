@@ -2,6 +2,12 @@
 
 ![Sabo — inner frame under a translucent skin](docs/img/hero.png)
 
+<p align="center">
+  <img src="docs/img/front.png" alt="Front view — the face" width="46%" />
+  <img src="docs/img/walk.gif" alt="Walking gait, front-facing (MuJoCo)" width="46%" />
+</p>
+<p align="center"><em>Left: front view (face). Right: walk gait, front-facing, CoM-tracked (MuJoCo) — torso roll ≈ 2.5° p-p.</em></p>
+
 Sabo is a kitten-scale (**~1.5 kg**) quadruped platform: **fully 3D-printed**, driven by
 cheap **serial-bus servos**, and designed to be **quiet** and **backdrivable** enough to
 share close space with a live animal. It is built **design-as-code** — one parameter file
