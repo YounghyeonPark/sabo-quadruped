@@ -41,6 +41,43 @@ backdrivable + sub-1 kg** at once.
   behavior → expression) behind a HAL, with a Jetson Orin Nano backend (stub-runnable on a
   dev box) and a serial-servo wiring pin-map.
 
+## Key numbers
+
+All derived from the model — regenerate with `python -m analysis.platform_report`.
+
+| Platform | |
+|---|---|
+| Mass | **1451 g** (plastic 360 + components 1091) — target 0.8–1.6 kg |
+| BOM cost | $711 / **$838** / $965 (lo / mid / hi) |
+| DOF | **14 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 6 expressive (waist, head pan/pitch/tilt, ears, tail) |
+| Actuator | Feetech STS3215 ×14 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
+| Compute | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W |
+| Four-bar knee | 128° ROM, 41–140° transmission angle (singularity-free) |
+| Remote-axle hip | **−93 %** hip lateral inertia (motors relocated to the torso) |
+| Envelope | 347 × 189 × 192 mm |
+| Viable scale range | **k ≈ 0.7–1.25** (body 126–225 mm) — the fixed actuator sets the window |
+
+Gait benchmark (MuJoCo):
+
+| Gait | Upright | Travel | Peak torque (% of stall) | Torso roll p-p |
+|---|:--:|--:|--:|--:|
+| stand | ✓ | — | 12 % | 0.0° |
+| walk | ✓ | 11 cm | 44 % | 2.5° |
+| trot | ✓ | 48 cm | 35 % | 3.1° |
+
+> Hardware-measured metrics (acoustic dB, backlash, backdrive torque, battery runtime,
+> sim-to-real gap) are **TBD** — pending the physical build (see
+> [`docs/build_mvp.md`](docs/build_mvp.md)).
+
+## Gallery
+
+<p align="center">
+  <img src="docs/img/side.png" alt="Side view — digitigrade stance" width="31%" />
+  <img src="docs/img/loaf.png" alt="Loaf pose" width="31%" />
+  <img src="docs/img/sit.png" alt="Sit pose" width="31%" />
+</p>
+<p align="center"><em>Left → right: digitigrade stance (side), loaf, sit — current model, MuJoCo.</em></p>
+
 ## Repository layout
 
 | Path | What |
