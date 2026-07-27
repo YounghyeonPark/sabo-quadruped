@@ -78,6 +78,18 @@ Gait benchmark (MuJoCo):
 </p>
 <p align="center"><em>Left → right: digitigrade stance (side), loaf, sit — current model, MuJoCo.</em></p>
 
+### Mechanism & analysis
+
+<p align="center">
+  <img src="docs/img/fourbar.png" alt="Four-bar knee kinematics" width="90%" />
+</p>
+<p align="center"><em>Proximal four-bar knee — 128° ROM, monotonic and invertible, with the transmission angle held inside 40–140° (no singularity/lock-up).</em></p>
+
+<p align="center">
+  <img src="docs/img/scaling.png" alt="Design-as-code scaling study" width="74%" />
+</p>
+<p align="center"><em>Scaling study — the whole robot regenerated + re-validated from one <code>SCALE</code> knob. The <b>fixed</b> actuator pins the viable build window to <b>k ≈ 0.7–1.25</b>: scale up until mass/torque run out, down until the servo no longer fits.</em></p>
+
 ## Repository layout
 
 | Path | What |
