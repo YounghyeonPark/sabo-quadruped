@@ -114,11 +114,17 @@ spec sheet is derived live, so it cannot disagree with the printed/simulated rob
 **Scaling study (C3 evidence):** `analysis/scaling_study.py` regenerates + re-validates
 the whole robot at k = 0.5–1.75 from a single `SCALE` knob, in a fresh subprocess per
 scale (`docs/out/scaling_study.md`). It confirms the pipeline rescales with no drift, and
-maps the **viable build range k ≈ 0.7–1.25** (body 126–225 mm): below it the fixed-size
-servo/electronics break the design three ways (walk→100 % stall & fall, servo won't fit
-the thigh, CAD blows through); above it mass exits the 1.6 kg band (k=1.5) then static
-torque crosses the 2× line (k=1.75). The scale window is pinned by the *fixed actuator*,
-not the geometry — a finding only a design-as-code sweep can produce cheaply.
+maps the **viable build range k ≈ 0.7–1.5** (body 126–270 mm): below it the fixed-size
+servo body (45 mm) no longer fits the shrinking thigh; above it mass exits the 1.6 kg band
+and static torque crosses the 2× line together at k = 1.75. The scale window is pinned by
+the *fixed actuator*, not the geometry — a finding only a design-as-code sweep can produce
+cheaply.
+
+The sweep also caches per scale, which was a hazard: keyed on `SCALE` alone it happily
+re-served results from before the mechanism rework, reporting a mass the model no longer
+had. It is now keyed on a fingerprint of the design sources too, and it earns its keep —
+the first honest re-run failed at every scale but k = 1, because the remote drives had
+been added with fixed link lengths while their ground scaled with the body.
 
 ## Honest gap — what stands between this and an accepted platform paper
 

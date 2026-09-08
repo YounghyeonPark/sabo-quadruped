@@ -1,7 +1,14 @@
-"""Assembly stills (front + iso) via MuJoCo — eyeball the slim shoulders.
+"""Assembly stills via MuJoCo — the robot as its own kinematics actually pose it.
 
-Steps the rig to a settled stance, then captures a front and a 3/4-iso PNG with a
-free camera following the torso CoM. Saves to cad/out/assembly_{front,iso}.png.
+Steps the rig to a settled stance, then captures a set of views with a free camera
+following the torso CoM. Saves to ``cad/out/assembly_<view>.png``.
+
+Azimuth runs with the robot's nose at 175 deg, so the views are:
+
+    hero    front 3/4 — the one the README leads with, so it has to show the FACE
+    front   straight on
+    side    profile, for the digitigrade stance
+    iso     rear 3/4, which is what the old hero shot actually was
 """
 
 from __future__ import annotations
@@ -34,8 +41,9 @@ def main():
     # to let it settle level on the floor before the still.
     for _ in range(300):
         mujoco.mj_step(rig.model, rig.data)
-    renderer = mujoco.Renderer(rig.model, 600, 800)
-    for label, (az, el) in (("iso", (55, -18)), ("front", (175, -8))):
+    renderer = mujoco.Renderer(rig.model, 750, 1000)
+    for label, (az, el) in (("hero", (138, -14)), ("front", (175, -8)),
+                            ("side", (95, -8)), ("iso", (55, -18))):
         renderer.update_scene(rig.data, camera=_cam(rig, az, el))
         p = os.path.join(OUT, f"assembly_{label}.png")
         Image.fromarray(renderer.render()).save(p)

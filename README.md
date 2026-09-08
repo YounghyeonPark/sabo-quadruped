@@ -1,12 +1,15 @@
 # Sabo — a low-cost, quiet, compliant 3D-printed quadruped
 
-![Sabo — inner frame under a translucent skin](docs/img/hero.png)
+![Sabo — the inner frame under a translucent skin](docs/img/hero.png)
+<p align="center"><em>Standing in the pose its own kinematics settle into — MuJoCo, not a posed CAD render.</em></p>
 
 <p align="center">
   <img src="docs/img/front.png" alt="Front view — the face" width="46%" />
   <img src="docs/img/walk.gif" alt="Walking gait, front-facing (MuJoCo)" width="46%" />
 </p>
-<p align="center"><em>Left: front view (face). Right: walk gait, front-facing, CoM-tracked (MuJoCo) — torso roll ≈ 2.5° p-p.</em></p>
+<p align="center"><em>Left: the face — Ø100 head on a 180 mm body, baby-schema by intent and by
+actuator budget (it holds two of the twelve servos). Right: walk gait, CoM-tracked — torso
+roll ≈ 3.1° p-p.</em></p>
 
 Sabo is a kitten-scale (**~1.31 kg**) quadruped platform: **fully 3D-printed**, driven by
 cheap **serial-bus servos**, and designed to be **quiet** and **backdrivable** enough to
@@ -31,6 +34,10 @@ backdrivable + sub-1 kg** at once.
 - **Cat-anatomical morphology** — digitigrade 4-DOF legs (front/rear differ), a sagittal
   spine (waist) joint, and a 2-axis head gimbal (pan + pitch; roll is handled by EIS), in
   a parametric build123d model.
+- **Actuators placed where they fit, not where they are convenient** — four joints have no
+  room for a servo on the joint itself, so they are driven through four-bars from wherever
+  there is: the hips from the torso core, the knees from up the thigh, the tail and the
+  head's yaw from the body. `analysis/actuator_fit.py` is what decides.
 - **A limb architecture for cheap compliance** — a **proximal four-bar knee** (cable-free,
   light shank), a **remote-axle hip** (servos in the torso → −93 % hip lateral inertia),
   and **coupled underactuation** (2 motors/leg).
@@ -64,7 +71,7 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 | Four-bar knee | 128° ROM, 41–140° transmission angle (singularity-free) |
 | Remote-axle hip | **−93 %** hip lateral inertia (motors relocated to the torso) |
 | Envelope | 352 × 201 × 197 mm |
-| Viable scale range | **k ≈ 0.7–1.25** (body 126–225 mm) — the fixed actuator sets the window |
+| Viable scale range | **k ≈ 0.7–1.5** (body 126–270 mm) — the fixed actuator sets the window |
 
 Gait benchmark (MuJoCo):
 
@@ -85,19 +92,27 @@ Gait benchmark (MuJoCo):
   <img src="docs/img/loaf.png" alt="Loaf pose" width="31%" />
   <img src="docs/img/sit.png" alt="Sit pose" width="31%" />
 </p>
-<p align="center"><em>Left → right: digitigrade stance (side), loaf, sit — current model, MuJoCo.</em></p>
+<p align="center"><em>Left → right: digitigrade stance (side), loaf, sit — current model, MuJoCo.
+The ribcage, the channel thighs and the four-bar inside them read through the translucent skin.</em></p>
 
 ### Mechanism & analysis
 
 <p align="center">
   <img src="docs/img/fourbar.png" alt="Four-bar knee kinematics" width="90%" />
 </p>
-<p align="center"><em>Proximal four-bar knee — 128° ROM, monotonic and invertible, with the transmission angle held inside 40–140° (no singularity/lock-up).</em></p>
+<p align="center"><em>Proximal four-bar knee — 129° ROM, monotonic and invertible, with the
+transmission angle held inside 40–140° (no singularity/lock-up). The same tool sizes the
+tail and head-yaw drives, which are four-bars for the same reason: no room for a servo on
+the joint itself.</em></p>
 
 <p align="center">
   <img src="docs/img/scaling.png" alt="Design-as-code scaling study" width="74%" />
 </p>
-<p align="center"><em>Scaling study — the whole robot regenerated + re-validated from one <code>SCALE</code> knob. The <b>fixed</b> actuator pins the viable build window to <b>k ≈ 0.7–1.25</b>: scale up until mass/torque run out, down until the servo no longer fits.</em></p>
+<p align="center"><em>Scaling study — the whole robot regenerated + re-validated from one
+<code>SCALE</code> knob, and this figure is drawn by that same run. The <b>fixed</b> actuator pins the
+viable window to <b>k ≈ 0.7–1.5</b>: scale up until mass and static torque run out, down until the
+45 mm servo body no longer fits the thigh. Note the walk peak (green) barely moves — the limits are
+the static budget and packaging, not gait stability.</em></p>
 
 ## Repository layout
 
@@ -154,8 +169,10 @@ python -m analysis.scaling_study       # regenerate + re-validate the robot at k
 ```
 
 The **scaling study** shows the toolchain rescaling the whole robot from one `SCALE` knob
-(env `SABO_SCALE`) with no drift, and finds the **viable build range k ≈ 0.7–1.25** — the
-scale window is pinned by the *fixed* actuator/electronics, not the printed geometry.
+(env `SABO_SCALE`) with no drift, and finds the **viable build range k ≈ 0.7–1.5** — the
+scale window is pinned by the *fixed* actuator/electronics, not the printed geometry. Its
+cache is keyed on a fingerprint of the design, so a changed model invalidates it instead of
+quietly re-serving the previous run's numbers.
 
 ## Documentation
 

@@ -39,6 +39,11 @@ def m(mm: float) -> float:
 # (like the servo, those are fixed COTS parts: M2/M3 screws, brass inserts, Ø6 axle).
 # DEFAULT-IDENTITY: with SABO_SCALE unset (=1.0) every constant is byte-identical to
 # the unscaled design (x*1.0 == x), so validation output and the tests are unchanged.
+#
+# Every LENGTH added later has to join this list or the scaled model stops assembling. The
+# remote drives were added with fixed link lengths while their GROUND scaled off FORE_LEN
+# and AFT_LEN, so at k != 1 the four-bars no longer closed and every variant but k=1 failed
+# to build -- silently, because the study's cache had no idea the design had moved.
 SCALE = float(os.environ.get("SABO_SCALE", "1.0"))
 
 
@@ -191,7 +196,7 @@ NECK_L = 34.0 * SCALE
 # behind it there is 15 mm. The head itself does not move -- only the yaw axis does, which
 # gives the head a slight sideways shift as it turns, the way a real neck does.
 HEAD_DRIVE = "remote_fourbar"
-HEAD_GIMBAL_STACK = 18.0           # pan axis -> pitch axis (= the head centre)
+HEAD_GIMBAL_STACK = 18.0 * SCALE   # pan axis -> pitch axis (= the head centre)
 HEAD_MOUNT_X = FORE_LEN - HEAD_GIMBAL_STACK
 LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a crank small
                                    # enough to stay clear of the waist (2.07 rad available)
@@ -199,11 +204,13 @@ LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a 
 # Pan: servo shaft (x, z) in the fore-torso frame, from actuator_fit.capacity('chest'),
 # dropped to the underside so its crank sweeps below the head ball (which reaches
 # down to z = -24 at the pan axis; the chest floor is at z = -39).
-PAN_SERVO = (31.0, -23.0)
+PAN_SERVO = (31.0 * SCALE, -23.0 * SCALE)
 # The crank is deliberately SMALL. A longer one reaches the same range with a nicer
 # transmission angle, but its swept disc runs back past the waist plane -- at crank 27
 # it reaches x = -0.5, into the aft half. At 17 it stops at x = +9.5.
-PAN_FOURBAR = dict(crank=17.0, coupler=47.0, rocker=13.5, crank_window=(-22.0, 87.0))
+PAN_FOURBAR = _scale_lengths(
+    dict(crank=17.0, coupler=47.0, rocker=13.5, crank_window=(-22.0, 87.0)),
+    ("crank", "coupler", "rocker"))
 
 # Pitch: the servo sits ON the pitch axis at the head's centre, its horn bolted to the
 # neck column, so the head nods against the column. No linkage.
@@ -230,14 +237,14 @@ def pitch_yoke_y() -> float:
 
 
 PITCH_YOKE_Y = 24.0                # legacy alias; prefer pitch_yoke_y()
-PITCH_YOKE_ARM = 8.0               # yoke arm cross-section (mm)
+PITCH_YOKE_ARM = 8.0 * SCALE               # yoke arm cross-section (mm)
 
 
-PAN_BEARING_Z = -35.0              # the neck's yaw bearing, in the chest under the ball
-NECK_COLUMN_W = 14.0               # column cross-section (mm)
+PAN_BEARING_Z = -35.0 * SCALE              # the neck's yaw bearing, in the chest under the ball
+NECK_COLUMN_W = 14.0 * SCALE               # column cross-section (mm)
 
 
-PAN_LINK_Z = 8.5                   # pan linkage plane, in the neck column's own frame
+PAN_LINK_Z = 8.5 * SCALE                   # pan linkage plane, in the neck column's own frame
                                    # (global z = PAN_BEARING_Z + this = -26.5: below the
                                    # head ball, which stops at -16, and above the chest
                                    # floor, which is at -34 under the servo)
@@ -264,7 +271,7 @@ def pitch_origin_local() -> tuple[float, float, float]:
 # The head sits above the shoulder line rather than level with it. That is how a cat is
 # built, and here it is also what gives the pan linkage a plane to run in: the head ball
 # reaches down to z = -24 at the yaw axis, and the pan rocker needs to pass UNDER it.
-HEAD_RISE = 8.0
+HEAD_RISE = 8.0 * SCALE
 
 
 def head_centre() -> tuple[float, float, float]:
@@ -273,9 +280,9 @@ def head_centre() -> tuple[float, float, float]:
 EYE_R = 11.0 * SCALE
 EYE_SPACING = 40.0 * SCALE
 CAM_R = 6.0           # internal camera bore radius (not in the scaled-dims list)
-EAR_BASE_H = 6.0           # flat foot of the ear, seated on the head's mounting pad
-EAR_FOOT_W = 10.0          # foot width across the head (Y)
-EAR_PAD_PROUD = 1.0        # how far the pad stands off the sphere, so the foot lands flat
+EAR_BASE_H = 6.0 * SCALE           # flat foot of the ear, seated on the head's mounting pad
+EAR_FOOT_W = 10.0 * SCALE          # foot width across the head (Y)
+EAR_PAD_PROUD = 1.0 * SCALE        # how far the pad stands off the sphere, so the foot lands flat
 
 
 def ear_station(side: int = 1) -> tuple[float, float, float]:
@@ -544,11 +551,11 @@ HORN_DISC_T = 2.5        # thickness of the metal STS3215 output disc
 # heat-set inserts in that pad.
 MOUNT_SCREW = "M3"
 MOUNT_SCREWS = 2                  # screws per leg bracket
-MOUNT_PAD = (26.0, 14.0)          # torso mount pad footprint (X, Z), mm —
+MOUNT_PAD = (26.0 * SCALE, 14.0 * SCALE)   # torso mount pad footprint (X, Z), mm —
                                   # kept short in Z so the bolted foot stays clear of
                                   # the knee servo boss swinging past it
-MOUNT_PAD_T = 5.0                 # pad thickness (grows inboard from the flank plane)
-MOUNT_BOLT_PITCH = 16.0           # screw spacing along X on the pad
+MOUNT_PAD_T = 5.0 * SCALE                 # pad thickness (grows inboard from the flank plane)
+MOUNT_BOLT_PITCH = 16.0 * SCALE           # screw spacing along X on the pad
 MOUNT_FACE_GAP = 0.15             # bracket-to-pad seating gap (a print-fit, not a joint)
 
 # =============================================================== waist joint clearance
@@ -567,11 +574,13 @@ WAIST_CLEAR = 3.0
 # ``TAIL_SERVO`` is the (x, z) of the servo's OUTPUT SHAFT in the aft-torso frame, chosen
 # from ``analysis.actuator_fit.capacity('aft')`` -- the one station where the housing fits.
 TAIL_DRIVE = "remote_crank"        # 'direct' (servo on the joint) | 'remote_crank'
-TAIL_SERVO = (-54.0, 0.0)
+TAIL_SERVO = (-54.0 * SCALE, 0.0)
 # Link lengths from a search over analysis.fourbar with this ground distance, keeping the
 # transmission angle inside the same 40-140 deg band the knee uses. Gives 2.14 rad of
 # rocker travel against the +-1.0 rad the tail joint actually needs.
-TAIL_FOURBAR = dict(crank=21.5, coupler=45.0, rocker=18.0, crank_window=(-28.5, 84.0))
+TAIL_FOURBAR = _scale_lengths(
+    dict(crank=21.5, coupler=45.0, rocker=18.0, crank_window=(-28.5, 84.0)),
+    ("crank", "coupler", "rocker"))
 LIM_TAIL = (-1.0, 1.0)             # rad, matches cad/assembly.py's tail link
 
 

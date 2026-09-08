@@ -34,6 +34,7 @@ import argparse
 import json
 import os
 import re
+import pathlib
 import subprocess
 import sys
 import traceback
@@ -53,18 +54,49 @@ CACHE = os.path.join(OUT_DIR, "_scaling_cache.json")
 _J0, _J1 = "<<<SCALING_JSON>>>", "<<<END_SCALING_JSON>>>"
 
 
+_FINGERPRINT_KEY = "__design__"
+
+
+def _design_fingerprint() -> str:
+    """A hash of the sources that decide what a scaled variant comes out as.
+
+    The cache is keyed by SCALE alone, which is only safe while the design does not move.
+    It did: a run after the mechanism rework reported the old 1451 g at k=1 and skipped
+    every variant as "cached". Keying the cache on the design as well means a changed
+    model invalidates it instead of quietly serving the previous one."""
+    import hashlib
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    h = hashlib.sha256()
+    srcs = sorted(pathlib.Path(root, "cad").rglob("*.py"))
+    srcs += [pathlib.Path(root, "sim", "gait.py"), pathlib.Path(root, "analysis", "validate.py")]
+    for f in srcs:
+        if "__pycache__" in f.parts:
+            continue
+        h.update(f.name.encode())
+        try:
+            h.update(f.read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:16]
+
+
 def _load_cache() -> dict:
     try:
         with open(CACHE, encoding="utf-8") as f:
-            return json.load(f)
+            cache = json.load(f)
     except (OSError, ValueError):
         return {}
+    if cache.pop(_FINGERPRINT_KEY, None) != _design_fingerprint():
+        print("  (design changed since the cache was written — recomputing)", flush=True)
+        return {}
+    return cache
 
 
 def _save_cache(cache: dict) -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     with open(CACHE, "w", encoding="utf-8") as f:
-        json.dump(cache, f, indent=2)
+        json.dump({**cache, _FINGERPRINT_KEY: _design_fingerprint()}, f, indent=2)
 
 # regexes over validate's OWN reported detail strings (the study is a faithful
 # CONSUMER of validate's numbers, so the table can never disagree with the checker).
@@ -385,6 +417,63 @@ def build_markdown(by_k: dict[str, dict]) -> str:
     return "\n".join(L) + "\n"
 
 
+def write_figure(by_k: dict, path: str) -> str | None:
+    """Plot the sweep — the README's scaling figure, drawn from this run's own numbers.
+
+    It used to be a hand-made image, which meant its caption could go stale without
+    anything noticing; it claimed a viable band the study no longer reported. Emitting it
+    here puts the picture under the same rule as the tables."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ImportError:
+        return None
+
+    ks, mass, static, dyn, roll, ok = [], [], [], [], [], []
+    for k in RANGE_SCALES:
+        r = by_k.get(k)
+        if not r or r.get("validate", {}).get("mass_g") is None:
+            continue
+        ks.append(float(k))
+        mass.append(r["validate"]["mass_g"])
+        static.append(r["validate"]["static_peak_torque_pct"])
+        dyn.append(r["walk"].get("dynamic_peak_torque_pct"))
+        roll.append(r["walk"].get("roll_pp_deg"))
+        ok.append(_buildable(r))
+
+    from cad import params as P
+    lo, hi = (v * 1000.0 for v in P.MASS_TARGET)
+    fig, ax = plt.subplots(1, 3, figsize=(13, 3.8))
+
+    ax[0].axhspan(lo, hi, color="0.90", label="mass target")
+    ax[0].plot(ks, mass, "o-", color="#1f77b4")
+    ax[0].set_ylabel("total mass (g)")
+
+    ax[1].axhline(50, ls="--", color="#d62728", label="static limit (SF 2)")
+    ax[1].plot(ks, static, "o-", color="#ff7f0e", label="static peak")
+    ax[1].plot(ks, dyn, "s-", color="#2ca02c", label="walk peak")
+    ax[1].set_ylabel("% of servo stall")
+    ax[1].legend(fontsize=7)
+
+    ax[2].plot(ks, roll, "o-", color="#9467bd")
+    ax[2].set_ylabel("walk torso roll p-p (deg)")
+
+    kmin, kmax = min((k for k, o in zip(ks, ok) if o), default=None), \
+        max((k for k, o in zip(ks, ok) if o), default=None)
+    for a in ax:
+        if kmin is not None:
+            a.axvspan(kmin, kmax, color="#2ca02c", alpha=0.10)
+        a.set_xlabel("SCALE k")
+        a.grid(alpha=0.25)
+    fig.suptitle("Sabo scaling study — one SCALE knob, re-validated end to end"
+                 "   (shaded k = buildable: %s–%s)" % (kmin, kmax), fontsize=10)
+    fig.tight_layout()
+    fig.savefig(path, dpi=130)
+    plt.close(fig)
+    return path
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--worker", metavar="K",
@@ -456,9 +545,14 @@ def main() -> int:
                    "viable_range": _viable_range([by_k[k] for k in RANGE_SCALES]),
                    "variants": by_k}, f, indent=2)
 
+    fig_path = write_figure(by_k, os.path.join(
+        os.path.dirname(OUT_DIR), "img", "scaling.png"))
+
     print("-" * 70)
     print(f"wrote {os.path.relpath(md_path)}")
     print(f"wrote {os.path.relpath(json_path)}")
+    if fig_path:
+        print(f"wrote {os.path.relpath(fig_path)}")
     return 0
 
 

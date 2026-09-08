@@ -121,7 +121,8 @@ def build_mjcf(start_z: float | None = None) -> str:
   <asset>
 {assets}
   </asset>
-  <visual><global offwidth="900" offheight="700"/></visual>
+  <!-- Offscreen buffer for the README stills; MuJoCo will not render larger than this. -->
+  <visual><global offwidth="1400" offheight="1100"/></visual>
   <worldbody>
     <light pos="0.3 -0.3 1.2" dir="-0.2 0.2 -1" diffuse="0.9 0.9 0.9"/>
     <camera name="cam" pos="0.02 -0.52 0.20" xyaxes="1 0 0 0 0.35 1" mode="trackcom"/>
