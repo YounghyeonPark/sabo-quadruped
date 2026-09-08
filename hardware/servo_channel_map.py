@@ -2,8 +2,8 @@
 Servo bus-ID map + per-servo calibration for the Feetech STS3215 serial bus.
 ============================================================================
 
-Sabo drives **14 servos** on a single **TTL serial daisy-chain** (Feetech
-STS3215 smart servos). Every servo has a unique **bus ID (1..14)**; they share
+Sabo drives **12 servos** on a single **TTL serial daisy-chain** (Feetech
+STS3215 smart servos). Every servo has a unique **bus ID (1..12)**; they share
 one half-duplex TTL line off the bus adapter (see ``jetson_backend.py``). The
 LED eyes are **no longer** on the actuator bus — an STS3215 chain can't drive a
 PWM LED — so they now live on a Jetson GPIO/PWM pin (see ``LED_EYE`` below).
@@ -129,12 +129,11 @@ LIM_KNEE_REAR = (0.0, 2.79)      # 159.9 deg
 LIM_WAIST = (-0.45, 0.65)
 LIM_HEAD_PAN = (-1.4, 1.4)    # ±~80°; head-pan not in params.py, chosen for FOV
 LIM_HEAD_PITCH = (-0.7, 0.7)  # nod + camera-pitch gimbal
-LIM_HEAD_TILT = (-0.7, 0.7)   # roll: cute tilt + camera-roll gimbal
 LIM_EAR = (-0.6, 0.6)         # forward(+) .. flat(-)
 LIM_TAIL = (-1.2, 1.2)        # low(-) .. up(+); wag rides on top
 
 # --------------------------------------------------------------------- the map
-# 14 servos on the daisy-chain, bus IDs 1..14 (ID 0 is the Feetech broadcast /
+# 12 servos on the daisy-chain, bus IDs 1..12 (ID 0 is the Feetech broadcast /
 # unconfigured default, so we start at 1). Physical chain order is chosen to keep
 # the wiring trunk short: front legs → rear legs → spine/head → appendages.
 #   8 leg (FL/FR/RL/RR × hip+knee) + waist + head_pan + head_pitch + head_tilt
@@ -153,11 +152,10 @@ SERVOS: dict[str, ServoBusChannel] = {
     "waist":      ServoBusChannel("waist",      9,  *LIM_WAIST),
     "head_pan":   ServoBusChannel("head_pan",   10, *LIM_HEAD_PAN),
     "head_pitch": ServoBusChannel("head_pitch", 11, *LIM_HEAD_PITCH),
-    "head_tilt":  ServoBusChannel("head_tilt",  12, *LIM_HEAD_TILT),
     # ---- expressive appendages -----------------------------------------
-    # EARS_LINKED in cad/params.py: one motor drives ear_L; ear_R follows mechanically.
-    "ear_L":      ServoBusChannel("ear_L", 13, *LIM_EAR),
-    "tail":       ServoBusChannel("tail",  14, *LIM_TAIL),
+    # The ears are RIGID (cad/params.py :: EARS_ACTUATED) -- there is no ear servo on the
+    # bus. LIM_EAR is kept for a later revision that drives them.
+    "tail":       ServoBusChannel("tail",  12, *LIM_TAIL),
 }
 
 # LED eyes: Jetson hardware PWM on 40-pin header pin 33 (pwmchip0 ch0 on Orin

@@ -1,5 +1,5 @@
 """
-Run the RoboKitten brain against the hardware backend.
+Run the Sabo brain against the hardware backend.
 ======================================================
 
 On the Jetson this drives the real robot; on the dev machine it runs in stub
@@ -30,7 +30,7 @@ import sys
 import numpy as np
 
 from brain.hal import Event, EventSink
-from brain.robokitten import RoboKitten
+from brain.sabo import Sabo
 from hardware import servo_channel_map as scm
 from hardware.jetson_backend import HardwareBody, HardwareSenses
 from training.deploy_policy import ACTION_JOINTS, LearnedGait, build_obs
@@ -101,11 +101,11 @@ def main() -> None:
     mode = "LIVE hardware" if body.live else "STUB (no hardware present)"
     locomotion = ("learned RL policy" if gait.live
                   else "learned-gait stub (standing pose)")
-    print(f"\nRunning RoboKitten on backend: {mode}")
+    print(f"\nRunning Sabo on backend: {mode}")
     print(f"Locomotion engine: {locomotion}")
     print(f"Ticks: {args.ticks}  dt: {args.dt}s\n")
 
-    kitten = RoboKitten(body, senses, events)
+    kitten = Sabo(body, senses, events)
     for i in range(args.ticks):
         snap = kitten.tick(args.dt)
         # AI actuator loop: behavior AI set the gait *intent* on Body this tick;
@@ -117,7 +117,7 @@ def main() -> None:
     print(f"  gait={body.gait_mode.value} forward={body.cmd_forward:.3f} "
           f"yaw={body.cmd_yaw:.3f}")
     print(f"  posture front={body.front_height:.2f} rear={body.rear_height:.2f}  "
-          f"head_pan={body.head_pan:.2f} head_tilt={body.head_tilt:.2f}")
+          f"head_pan={body.head_pan:.2f} head_pitch={body.head_pitch:.2f}")
     print(f"  ears={body.ears.value} tail={body.tail.value} "
           f"wag={body.tail_wag:.2f} eyes={body.eyes_open:.2f} purr={body.purring}")
     print("\nOK — brain ran cleanly against the hardware backend.")

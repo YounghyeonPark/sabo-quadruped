@@ -32,7 +32,7 @@ from cad import params as P
 from sim import gait
 
 NEUTRAL = dict(front_depth=1.0, rear_depth=1.0, waist=0.0,
-               head_tilt=0.0, head_pan=0.0, head_pitch=0.0, ear=0.0, tail=0.15,
+               head_pan=0.0, head_pitch=0.0, tail=0.15,
                front_tuck=0.0, rear_tuck=0.0)   # foot x-offset (mm; + = forward)
 
 
@@ -58,9 +58,11 @@ def _pulse(u, up=0.3, down=0.7):
 
 
 # ---------------------------------------------------------------- gestures
-def g_head_tilt(u):
+def g_head_cock(u):
+    """The quizzical look. With no roll joint (params.HEAD_ROLL_ACTUATED) this is a turn
+    plus a lift rather than a tilt -- the head cocks to one side and looks up."""
     a = _pulse(u, 0.35, 0.6)
-    return dict(head_tilt=0.55 * a, ear=0.4 * a, head_pan=0.15 * a)
+    return dict(head_pan=0.45 * a, head_pitch=-0.30 * a)
 
 
 def g_stretch(u):
@@ -87,7 +89,7 @@ def g_loaf(u):
                 front_tuck=-10.0 * a,             # front paws slide back under the chest
                 rear_tuck=+10.0 * a,              # rear paws slide forward under the hips
                 waist=0.12 * a,                   # gently rounded back
-                tail=0.03, ear=0.18 * a, head_tilt=0.05 * a)
+                tail=0.03, head_pitch=-0.05 * a)
 
 
 def g_wiggle_pounce(u):
@@ -128,7 +130,7 @@ def g_sit(u):
                 rear_tuck=-20.0 * a,              # rear paws BEHIND the hip — rearward support strut
                 waist=0.35 * a,                   # spine arch — sits the rump down
                 head_pitch=-0.35 * a,             # head UP (don't let the heavy head tip it forward)
-                head_tilt=0.06 * a, ear=0.42 * a, tail=0.10)
+                tail=0.10)
 
 
 def g_sit_pretty(u):
@@ -137,7 +139,7 @@ def g_sit_pretty(u):
 
 
 GESTURES = {
-    "head_tilt": (g_head_tilt, 2.2),
+    "head_cock": (g_head_cock, 2.2),
     "stretch": (g_stretch, 3.2),
     "loaf": (g_loaf, 2.8),
     "wiggle_pounce": (g_wiggle_pounce, 2.4),
@@ -145,7 +147,7 @@ GESTURES = {
     "sit": (g_sit, 2.6),
     "sit_pretty": (g_sit_pretty, 2.6),
 }
-DEMO_SEQUENCE = ["head_tilt", "stretch", "loaf", "wiggle_pounce", "arch", "sit_pretty"]
+DEMO_SEQUENCE = ["head_cock", "stretch", "loaf", "wiggle_pounce", "arch", "sit_pretty"]
 
 
 # ---------------------------------------------------------------- idle liveliness
@@ -219,7 +221,6 @@ def apply_targets(rig, tgt):
         rig.set_target(f"{leg}_hip", hip)
         rig.set_target(f"{leg}_knee", knee)
     rig.set_target("torso_aft", tgt["waist"])
-    rig.set_target("head_tilt", tgt["head_tilt"])
     rig.set_target("head_pan", tgt["head_pan"])
     rig.set_target("head_pitch", tgt["head_pitch"])
     rig.set_target("ear_L", tgt["ear"])
@@ -281,7 +282,7 @@ class JumpController:
     def _crouch(self):
         return dict(NEUTRAL, front_depth=0.58, rear_depth=0.52,
                     front_tuck=-4.0, rear_tuck=+6.0, waist=-0.06,
-                    head_tilt=0.0, ear=0.45, tail=0.30)
+                    tail=0.30)
 
     def _extend(self):
         # explosive spring: front legs push HARDEST (near full stretch) to hold the

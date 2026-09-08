@@ -8,7 +8,7 @@
 </p>
 <p align="center"><em>Left: front view (face). Right: walk gait, front-facing, CoM-tracked (MuJoCo) — torso roll ≈ 2.5° p-p.</em></p>
 
-Sabo is a kitten-scale (**~1.5 kg**) quadruped platform: **fully 3D-printed**, driven by
+Sabo is a kitten-scale (**~1.31 kg**) quadruped platform: **fully 3D-printed**, driven by
 cheap **serial-bus servos**, and designed to be **quiet** and **backdrivable** enough to
 share close space with a live animal. It is built **design-as-code** — one parameter file
 (`cad/params.py`) drives the CAD, the physics model, and the bill of materials, so the
@@ -29,10 +29,19 @@ backdrivable + sub-1 kg** at once.
 ## Highlights
 
 - **Cat-anatomical morphology** — digitigrade 4-DOF legs (front/rear differ), a sagittal
-  spine (waist) joint, and a 2-axis head gimbal, in a parametric build123d model.
+  spine (waist) joint, and a 2-axis head gimbal (pan + pitch; roll is handled by EIS), in
+  a parametric build123d model.
 - **A limb architecture for cheap compliance** — a **proximal four-bar knee** (cable-free,
   light shank), a **remote-axle hip** (servos in the torso → −93 % hip lateral inertia),
   and **coupled underactuation** (2 motors/leg).
+- **Buildable, not just drawable** — every pivot is a **clevis in double shear** and the
+  thigh is a channel the whole four-bar runs inside, so no two printed parts share solid.
+  A regression test ([`tests/test_geometry.py`](tests/test_geometry.py)) rebuilds the posed
+  robot and fails on any interference, missing servo relief, or unfastened part.
+- **Actuators that actually fit** — `analysis/actuator_fit.py` measures whether there is
+  *room* for each servo, not just torque. It is why the tail is driven remotely (like the
+  hip), why the head is Ø100 and sits at the torso's nose, and why the last expression
+  joint is flagged rather than quietly drawn as if it fitted.
 - **Design-as-code** — `python -m analysis.platform_report` regenerates the whole artifact
   set (CAD → MJCF → BOM → spec) from one parameter file, with no hand-authored URDF.
 - **MuJoCo-validated motion** — stand / walk / trot gaits with IMU body-leveling, plus a
@@ -47,14 +56,14 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 
 | Platform | |
 |---|---|
-| Mass | **1451 g** (plastic 360 + components 1091) — target 0.8–1.6 kg |
-| BOM cost | $711 / **$838** / $965 (lo / mid / hi) |
-| DOF | **14 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 6 expressive (waist, head pan/pitch/tilt, ears, tail) |
-| Actuator | Feetech STS3215 ×14 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
+| Mass | **1314 g** (plastic 343 + components 971) — target 0.8–1.6 kg |
+| BOM cost | $699 / **$834** / $968 (lo / mid / hi) |
+| DOF | **12 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 4 expressive (waist, head pan/pitch, tail). The head holds two servo housings, so the ears are rigid and camera **roll** is corrected electronically instead of by a third gimbal axis |
+| Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
 | Compute | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W |
 | Four-bar knee | 128° ROM, 41–140° transmission angle (singularity-free) |
 | Remote-axle hip | **−93 %** hip lateral inertia (motors relocated to the torso) |
-| Envelope | 347 × 189 × 192 mm |
+| Envelope | 352 × 201 × 197 mm |
 | Viable scale range | **k ≈ 0.7–1.25** (body 126–225 mm) — the fixed actuator sets the window |
 
 Gait benchmark (MuJoCo):
@@ -62,8 +71,8 @@ Gait benchmark (MuJoCo):
 | Gait | Upright | Travel | Peak torque (% of stall) | Torso roll p-p |
 |---|:--:|--:|--:|--:|
 | stand | ✓ | — | 12 % | 0.0° |
-| walk | ✓ | 11 cm | 44 % | 2.5° |
-| trot | ✓ | 48 cm | 35 % | 3.1° |
+| walk | ✓ | 8 cm | 40 % | 3.1° |
+| trot | ✓ | 39 cm | 34 % | 3.4° |
 
 > Hardware-measured metrics (acoustic dB, backlash, backdrive torque, battery runtime,
 > sim-to-real gap) are **TBD** — pending the physical build (see
@@ -96,7 +105,7 @@ Gait benchmark (MuJoCo):
 |---|---|
 | `cad/` | parametric CAD (build123d): `params.py` (source of truth), `servo.py`, `parts/`, `assembly.py`, `export.py`, `print_manifest.py`, `parts/split.py` |
 | `sim/` | MuJoCo physics: `mjcf.py`, `gait.py`, `mj_emulate.py`, `cute_motion.py`, `meshes.py`, `fourbar_leg.py`, `brain_bridge.py` |
-| `analysis/` | engineering checks + reporting: `validate.py`, `optimize.py`, `bom.py`, `fourbar.py`, `platform_spec.py`, `benchmark.py`, `platform_report.py`, `scaling_study.py` |
+| `analysis/` | engineering checks + reporting: `validate.py`, `optimize.py`, `bom.py`, `hardware_bom.py`, `fourbar.py`, `platform_spec.py`, `benchmark.py`, `platform_report.py`, `scaling_study.py` |
 | `brain/` | hardware-independent behavior: HAL (`hal.py`), `perception.py`, mood/behaviors, expression, voice |
 | `hardware/` | Jetson HAL backend (`jetson_backend.py`), serial servo bus map, `run_on_hardware.py` |
 | `vision/` | camera geometry, pluggable detector, perception pipeline |
@@ -128,8 +137,9 @@ python -m sim.mj_emulate --gait trot --view  # interactive 3-D viewer (if a disp
 # CAD: printable STL/STEP + a mass manifest + renders (cad/out/)
 python -m cad.export
 
-# tests
+# tests — includes the validation gate as a regression test (builds the CAD, ~25 s)
 python -m pytest -q
+python -m pytest -q -m "not slow"   # skip the CAD build
 ```
 
 Windows consoles: prefix with `PYTHONIOENCODING=utf-8` if you hit a cp1252 encode error.
@@ -154,7 +164,9 @@ scale window is pinned by the *fixed* actuator/electronics, not the printed geom
 - [`docs/build_mvp.md`](docs/build_mvp.md) — physical-build minimum spec (order → build → measure).
 - [`docs/wiring_pinmap.md`](docs/wiring_pinmap.md) — full wiring / pin-map.
 - [`docs/edge_ai_hardware.md`](docs/edge_ai_hardware.md) — compute / sensors / power.
-- [`docs/assembly.md`](docs/assembly.md) — print + bolt-up guide.
+- [`docs/assembly.md`](docs/assembly.md) — print + bolt-up guide (clevis joints, fits).
+- [`docs/hardware_bom.md`](docs/hardware_bom.md) — orderable joint & fastener list, counted from the CAD.
+- `python -m analysis.actuator_fit` — per-joint actuator fit + where a servo can be housed.
 - Design notes: [`docs/noise_reduction.md`](docs/noise_reduction.md),
   [`docs/tendon_actuation.md`](docs/tendon_actuation.md),
   [`docs/custom_actuator.md`](docs/custom_actuator.md),

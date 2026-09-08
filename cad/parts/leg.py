@@ -103,6 +103,59 @@ def _pin_bore(length: float = LINK_T * 4, rotating: bool = True) -> Part:
     return F.pin_bore(length, rotating=rotating, axis="y")
 
 
+# ----------------------------------------------------- clevis (double-shear) pivots
+# Two links that pivot together CANNOT both be drawn on the leg's centre plane — they
+# would occupy the same solid. Every pin joint here is therefore a clevis: one link ends
+# in a two-cheek FORK, the mating link ends in a TONGUE that sits in the slot between the
+# cheeks, and the pin passes through cheek-tongue-cheek (double shear, so the pin is not
+# cantilevered). Lane widths come from ``cad.params.clevis_slot``.
+
+
+def _clevis_void(r: float, open_dir: int, slot_w: float) -> Part:
+    """The cavity a FORK must contain at a pivot: a disc so the tongue's hub can turn
+    through the joint's range, plus a channel out of the fork mouth so the tongue's own
+    shaft can swing. ``open_dir`` is the local ±z the mating link leaves towards."""
+    rr = r + P.CLEVIS_GAP
+    void = _cyl_y(rr, slot_w)
+    void += Pos(0, 0, open_dir * rr / 2.0) * Box(2 * rr, slot_w, rr)
+    return void
+
+
+def _fork_seat(part: Part, z: float, r: float, open_dir: int, rod: bool = False) -> Part:
+    """FORK half of a clevis at height ``z``: two cheeks straddling the slot, the Ø3 pin
+    bore through both, and a retention seat (e-clip / screw head) on each outer face."""
+    lo, hi = P.clevis_slot(rod)
+    slot_w = hi - lo
+    body_w = slot_w + 2 * P.CLEVIS_CHEEK_T
+    part = part + Pos(0, 0, z) * _cyl_y(r, body_w)
+    part -= Pos(0, 0, z) * _clevis_void(r, open_dir, slot_w)
+    part -= Pos(0, 0, z) * _pin_bore(length=body_w + 10)
+    for face in (+1, -1):
+        part -= Pos(0, 0, z) * F.pin_head_seat("y", face=face * body_w / 2)
+    return part
+
+
+def _tongue_seat(part: Part, z: float, r: float, open_dir: int,
+                 reach: float = 0.0) -> Part:
+    """TONGUE half of a clevis: thin everything around the pivot down to the tongue lane
+    so it enters the mating fork's slot, then add the hub and the pin bore.
+
+    ``reach`` carries that thinning on PAST the pivot, down the link's own shaft. The
+    shank needs it: its top does not merely enter the thigh's fork, it lives inside the
+    thigh channel alongside the pushrod, so it has to stay a blade for as long as the
+    rod runs beside it. Bending in the sagittal plane is unaffected (the x-section is
+    untouched); only lateral stiffness is traded, which this planar linkage does not use."""
+    t = P.CLEVIS_TONGUE_T
+    rr = r + 1.5
+    region = _cyl_y(rr, 80.0) + Pos(0, 0, open_dir * rr / 2.0) * Box(2 * rr, 80.0, rr)
+    if reach > 0.0:
+        region += Pos(0, 0, -open_dir * reach / 2.0) * Box(2 * rr, 80.0, reach)
+    part -= Pos(0, 0, z) * (region - Box(400.0, t, 400.0))
+    part = part + Pos(0, 0, z) * _cyl_y(r, t)
+    part -= Pos(0, 0, z) * _pin_bore(length=40)
+    return part
+
+
 def _flat_arm(length: float, r0: float, r1: float, t: float = LINK_T) -> Part:
     """A flat link in the x-z plane from the proximal pivot (0,0,0) to the distal
     pivot (length,0,0); pin axis = Y. Rounded hubs at both pivots + a joining web."""
@@ -112,28 +165,41 @@ def _flat_arm(length: float, r0: float, r1: float, t: float = LINK_T) -> Part:
     return hub0 + hub1 + web
 
 
-def crank() -> Part:
+def crank(sign: int = 1) -> Part:
     """Knee-servo crank (FOURBAR['crank'] mm): mounts on the servo horn at the crank
-    pivot (origin) and carries the crank–coupler pin at (crank,0,0)."""
+    pivot (origin) and carries the crank–coupler pin at (crank,0,0).
+
+    It lives in the thigh channel's IN-PLANE lane (y = 0, ``CLEVIS_TONGUE_T`` thick),
+    where the forked pushrod straddles it. The horn recess is on the inboard face only,
+    so the L and R cranks are the same flat part printed and simply flipped over —
+    ``sign`` only tells the MODEL which way round it is fitted."""
     r = P.FOURBAR["crank"]
-    body = _flat_arm(r, r0=HORN_R + 2.0, r1=PIN_R + 3.0)
-    body -= F.horn_holes(axis="y", length=LINK_T + 2)                # horn bolt circle + centre screw
-    body -= Pos(0, LINK_T / 2 - 1.1, 0) * _cyl_y(HORN_R + 0.4, 2.4)   # horn disc seat recess
+    t = P.CLEVIS_TONGUE_T
+    body = _flat_arm(r, r0=HORN_R + 2.0, r1=PIN_R + 3.0, t=t)
+    body -= F.horn_holes(axis="y", length=t + 2)                     # horn bolt circle + centre screw
+    body -= Pos(0, -sign * (t / 2 - P.HORN_DISC_T / 2), 0) * _cyl_y(
+        HORN_R + P.HORN_SEAT_CLEAR, P.HORN_DISC_T)                   # horn disc seat recess
     body -= Pos(r, 0, 0) * _pin_bore()                               # crank–coupler pin (rotating)
-    body -= Pos(r, 0, 0) * F.pin_head_seat("y", face=LINK_T / 2)     # pin retention (e-clip / head)
     return body
 
 
-def pushrod() -> Part:
-    """Rigid pushrod / coupler (FOURBAR['coupler'] mm) with a pin bore + shallow
-    bearing seats at each end (crank tip at origin, rocker tip at coupler)."""
+def pushrod(sign: int = 1) -> Part:
+    """Rigid pushrod / coupler (FOURBAR['coupler'] mm), running in its own lane.
+
+    It shares the C pin with the crank and the R pin with the rocker, and both of those
+    are in-plane links, so the rod cannot be coplanar with them. It sits one lane
+    outboard (``sign * P.FB_ROD_Y``) and both pins are shouldered; bearing counterbores
+    at each end take the shoulder so the rod runs on the pin, not on the printed bore.
+    Like the crank it is one flat printed part, flipped for the other side."""
     L = P.FOURBAR["coupler"]
-    t = LINK_T * 0.85
-    body = _flat_arm(L, r0=PIN_R + 3.0, r1=PIN_R + 3.0, t=t)
+    t = P.CLEVIS_ROD_T
+    hub = PIN_R + 3.0
+    ry = sign * P.FB_ROD_Y
+    body = Pos(0, ry, 0) * _flat_arm(L, r0=hub, r1=hub, t=t)
     for x in (0.0, L):
-        body -= Pos(x, 0, 0) * _pin_bore()
+        body -= Pos(x, ry, 0) * _pin_bore()
         for yf in (1, -1):                                           # bearing counterbores
-            body -= Pos(x, yf * (t / 2 - 0.6), 0) * _cyl_y(PIN_R + 1.4, 1.4)
+            body -= Pos(x, ry + yf * (t / 2 - 0.6), 0) * _cyl_y(PIN_R + 1.4, 1.4)
     return body
 
 
@@ -149,15 +215,16 @@ def _rocker_arm(stance_knee: float) -> Part:
     lx = rx * math.cos(k) + rz * math.sin(k)  # the rocker by Rot_y(-k): local = Rot_y(-k).R
     lz = -rx * math.sin(k) + rz * math.cos(k)
     ang = math.degrees(math.atan2(lz, lx))
-    arm = _flat_arm(r, r0=LINK_W * 0.6, r1=PIN_R + 3.0)
+    # The rocker sits in the SAME in-plane lane as the crank and the shank's knee tongue,
+    # inside the thigh channel — so the forked pushrod can straddle its pin.
+    arm = _flat_arm(r, r0=LINK_W * 0.6, r1=PIN_R + 3.0, t=P.CLEVIS_TONGUE_T)
     arm -= Pos(r, 0, 0) * _pin_bore()         # coupler–rocker pin at the tip (rotating)
-    arm -= Pos(r, 0, 0) * F.pin_head_seat("y", face=LINK_T / 2)   # pin retention seat
     return Rot(0, -ang, 0) * arm              # swing the +x arm onto the weld direction
 
 
 def _servo_pack(px: float, pz: float, pivot_y: float, sign: int,
                 long_axis: str = "x", wall: float = 3.0, r: float = 5.0,
-                off: tuple[float, float] = (0.0, 0.0)):
+                off: tuple[float, float] = (0.0, 0.0), shaft_end: int = +1):
     """A servo housing whose OUTPUT SHAFT lies on the local Y axis at ``(px, pivot_y,
     pz)`` (the joint) with the servo BODY tucked INBOARD — toward the centreline —
     so it protrudes minimally in +|Y|. This is the shoulder/hip anti-"box" trick:
@@ -175,17 +242,32 @@ def _servo_pack(px: float, pz: float, pivot_y: float, sign: int,
     the joint offset + one wall (vs. the old box that straddled the joint ±half the
     servo LENGTH). ``sign`` is the leg side (+1 L / -1 R): inboard = toward y=0."""
     l, w, h = SERVO.pocket
+    fl, ft = SERVO.flange_cut
+    hd, _ = SERVO.horn_seat
     dy = h                                          # depth along the shaft (Y)
     dx, dz = (l, w) if long_axis == "x" else (w, l)
+    flx, flz = (fl, dz) if long_axis == "x" else (dx, fl)
     dyb = dy + 2 * wall
     cy = pivot_y - sign * dyb / 2.0                 # boss centre: outer face on the joint plane
-    # ``off`` shifts the BODY in the (X, Z) plane while the shaft stays on the joint
-    # axis (this is the real servo's shaft_from_end offset) — used to slide one leg's
-    # two inboard servos apart so they don't overlap.
-    bc = Pos(px + off[0], cy, pz + off[1])
+    # The STS3215's output shaft is NOT centred on its case — it sits 12 mm from one end
+    # of a 45 mm body. The BODY therefore has to be offset from the joint axis by
+    # ``SERVO.shaft_offset`` or the pocket is 10.5 mm away from where the servo really is.
+    # ``shaft_end`` picks which way round the servo is fitted; ``off`` is an extra manual
+    # nudge used to stagger two servos that share a limb.
+    ecc = SERVO.shaft_offset * shaft_end
+    ex, ez = (ecc, 0.0) if long_axis == "x" else (0.0, ecc)
+    bx, bz = px + off[0] + ex, pz + off[1] + ez
+    bc = Pos(bx, cy, bz)
     boss = bc * _rounded_box(dx + 2 * wall, dyb, dz + 2 * wall, r)
-    cut = bc * Box(dx, dy, dz)                                    # servo pocket
-    cut = cut + Pos(px, cy, pz) * _cyl_y(3.0, dyb)               # shaft/horn relief on the axis
+    cut = bc * Box(dx, dy, dz)                                    # servo CASE pocket
+    # Mounting-FLANGE relief at the output end: the case is 45 mm long but the tabs span
+    # 54 mm. Without this the servo cannot be dropped into its own pocket.
+    cut = cut + Pos(bx, pivot_y - sign * (wall + ft / 2.0), bz) * Box(flx, ft, flz)
+    # Horn seat: the Ø20 disc is fitted from OUTSIDE after the servo is seated, so the
+    # outer wall needs a counterbore for it — a Ø6 shaft hole is not enough.
+    hdp = wall + 0.5                                              # break through the wall
+    cut = cut + Pos(px, pivot_y - sign * hdp / 2.0, pz) * _cyl_y(hd / 2.0, hdp)
+    cut = cut + Pos(px, cy, pz) * _cyl_y(3.0, dyb)               # shaft relief on the joint axis
     # STS3215 case-retention screws (M2), parallel to the shaft, into the flange face.
     cut = cut + bc * F.servo_case_screws("y", (dx, dz), length=dyb + 14)
     return boss, cut
@@ -202,23 +284,38 @@ def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
     z = -(length - P.FOURBAR["ground"])
     # shift the crank servo body ~6 mm DOWN the thigh (shaft stays on the crank pivot)
     # so its top clears the hip servo boss centred 29.5 mm above it.
-    boss, cut = _servo_pack(0.0, z, 0.0, sign, long_axis="x", off=(0.0, -6.0))
+    # NOTE the servo can only be offset along its OWN long axis (``shaft_end`` picks which
+    # way), because the shaft is centred across the case's 24 mm width — the old free
+    # ``off=(0,-6)`` nudge in Z was not a motion a real servo can make. Its 42 mm depth
+    # along the hip axis still reaches inboard past the torso flank, so the torso carries
+    # a swept clearance for it (body.py :: _hip_sweep_relief) instead.
+    boss, cut = _servo_pack(0.0, z, -sign * P.FB_HORN_Y, sign, long_axis="x")
     return strut + boss - cut
 
 
-def _pivot_seat(strut: Part, z: float, boss_r: float = 6.0) -> Part:
-    """Passive pivot (knee or ankle): a bearing boss + Ø3 rotating pin bore along Y at
-    height ``z``, with a retention counterbore (e-clip / shoulder-screw head) on the
-    +Y face. Used for the passive knee AND the passive foot↔lower-leg ankle pin."""
-    hb = LINK_T + 5.0
-    strut = strut + Pos(0, 0, z) * _cyl_y(boss_r, hb)
-    strut -= Pos(0, 0, z) * _pin_bore(length=44)
-    strut -= Pos(0, 0, z) * F.pin_head_seat("y", face=hb / 2)
+def _thigh_channel(strut: Part, length: float, sign: int = 1) -> Part:
+    """Open the thigh into a forward-facing CHANNEL.
+
+    This is what makes the four-bar buildable: the crank, the pushrod blades, the rocker
+    welded to the shank and the shank's own knee tongue all run INSIDE this one slot
+    instead of being drawn through the middle of the thigh solid. The slot only opens
+    towards +x (the linkage never swings behind the thigh — the crank window is
+    -20°..81°), so the back of the thigh stays a closed spine and keeps its bending
+    stiffness."""
+    lo, hi = P.clevis_slot(rod=True)
+    w = hi - lo
+    yc = sign * (lo + hi) / 2.0
+    z0 = -(length - P.FOURBAR["ground"])              # crank pivot
+    # the slot has to clear the crank over its WHOLE window, not just the stance pose:
+    # at the top of the window the crank tip swings up to nearly the hip.
+    _, hi_deg = P.FOURBAR["crank_window"]
+    reach = P.FOURBAR["crank"] * math.sin(math.radians(hi_deg)) + PIN_R + 3.0 + 2.0
+    top = min(0.0, z0 + reach)
+    bot = -length - 14.0
+    strut -= Pos(24.0, yc, (top + bot) / 2.0) * Box(48.0, w, top - bot)
+    # the crank hub sweeps a full disc about the crank pivot — clear it out of the spine
+    strut -= Pos(0, yc, z0) * _cyl_y(HORN_R + 3.0, w)
     return strut
-
-
-# back-compat alias (knee pivot is the original caller)
-_knee_pivot_seat = _pivot_seat
 
 
 def _bone_strut(length: float, rp: tuple[float, float], rd: tuple[float, float],
@@ -252,38 +349,69 @@ def _fenestrae(part: Part, length: float, ry: float) -> Part:
     return part
 
 
+def bracket_mount_screw_count() -> int:
+    """How many screws hold one leg bracket to the torso. The leg's ONLY attachment to
+    the body — a bracket without these has no defined way of being fitted."""
+    return P.MOUNT_SCREWS
+
+
+def servo_body_offset() -> float:
+    """Distance the servo BODY must be offset from the joint axis, because the STS3215's
+    output shaft is not centred on its case."""
+    return SERVO.shaft_offset
+
+
+def servo_cavity(long_axis: str = "x", sign: int = 1, wall: float = 3.0) -> Part:
+    """The complete cavity one servo needs — case pocket, mounting-flange relief, horn
+    counterbore, shaft relief and case screws — at the origin. Exposed so a test can
+    check the servo actually fits what the CAD cuts for it."""
+    _, cut = _servo_pack(0.0, 0.0, 0.0, sign, long_axis=long_axis, wall=wall)
+    return cut
+
+
 def hip_bracket(sign: int = 1, hip_off: float = 28.0, x_shift: float = 0.0) -> Part:
-    """Slim shoulder BEARING BLOCK (remote-axle hip drive, params.HIP_DRIVE).
+    """Slim shoulder BEARING BLOCK, bolted to the torso flank (remote-axle hip drive).
 
-    The hip/shoulder servo BODY is GONE from here — it now lives in the torso core
-    (body.py ``_core_hip_drive``). This part rides the (rigid) abduction output at the
-    mount (local origin, world |y|=BODY_W/2) and, at the hip pivot (local
-    ``y=sign*hip_off`` → world 79.5/86, UNCHANGED), carries the OUTBOARD drive-axle
-    bearing (#2). The lateral axle spins in that bearing and couples to the upper leg
-    just beyond; the block is otherwise a thin web tying the bearing back to the mount
-    hub. So the shoulder band holds only a Ø(bearing) boss + slim web instead of the fat
-    ~45 mm servo body → the skin can hug the body.
+    The hip/shoulder servo BODY is in the torso core (body.py ``_core_hip_drive``). This
+    part BOLTS to the flat mount pad on the torso flank at |y| = BODY_W/2 with
+    ``P.MOUNT_SCREWS`` screws — that is the leg's whole attachment to the body — and, part
+    way out along the hip axis, carries the OUTBOARD drive-axle bearing (#2). The lateral
+    axle spins in that bearing and couples to the upper leg at the hip pivot.
 
-    ``x_shift`` is retained for call-signature compatibility but no longer needed (there
-    is no servo body out here to slide fore-aft)."""
+    The bearing is placed far enough inboard of the hip pivot to clear the thigh channel's
+    full width, so the bracket and the thigh never occupy the same space.
+
+    ``x_shift`` is retained for call-signature compatibility (there is no servo body out
+    here to slide fore-aft any more)."""
     hb = P.HIP_BEARING
     wall = P.HIP_BOSS_WALL
-    yj = sign * hip_off
+    yj = sign * hip_off                     # the hip pivot, in this part's frame
     blen = hb["width"] + 6
-    # Bearing (#2) boss sits just INBOARD of the hip pivot plane (its outboard face ~1 mm
-    # inboard of the joint), so the upper leg's horn hub couples to the axle at the joint
-    # without clashing with this boss.
-    yb = yj - sign * (blen / 2.0 + 1.0)
-    part = Pos(0, yb, 0) * _cyl_y(hb["od_r"] + wall, blen)          # outboard drive-axle bearing
-    # abduction hub at the mount (origin), tying the block to the torso mount node
-    part += scale(Sphere(1), (SERVO.body_w * 0.45 + 3, 10.0, 12.0))
-    # slim web bridging hub -> bearing along Y (the shoulder link; kept narrow in X/Z)
-    part += Pos(0, yb / 2.0, 0) * Box(2 * (hb["od_r"] + wall), abs(yb), 2 * hb["od_r"])
+    # bearing station: inboard of the pivot far enough to clear the thigh's inboard cheek
+    # AND the axle flange that seats against it
+    lo, _ = P.clevis_slot(rod=True)
+    clear = -(lo - P.CLEVIS_CHEEK_T) + 3.0 + 1.5
+    yb = yj - sign * (clear + blen / 2.0)
+
+    part = Pos(0, yb, 0) * _cyl_y(hb["od_r"] + wall, blen)      # outboard drive-axle bearing
+    # bolted mounting foot, seated flat on the torso's flank pad
+    pad_x, pad_z = P.MOUNT_PAD
+    foot_t = 4.0
+    yf = sign * foot_t / 2.0
+    part += Pos(0, yf, 0) * Box(pad_x, foot_t, pad_z)
+    # slim web bridging foot -> bearing (kept narrow in X/Z so the skin can hug the body)
+    y0, y1 = sign * foot_t, yb
+    part += Pos(0, (y0 + y1) / 2.0, 0) * Box(2 * (hb["od_r"] + wall), abs(y1 - y0),
+                                             2 * hb["od_r"])
     # axle channel straight through the whole block on the Y hip axis
     part -= _cyl_y(hb["bore_r"] + P.AXLE_CLEAR, 3 * abs(yj) + 40)
-    # bearing seat (wider than the axle bore) recessed from the inboard face of the boss
+    # bearing seat (wider than the axle bore), recessed from the inboard face of the boss
     part -= Pos(0, yb, 0) * _cyl_y(hb["od_r"], hb["width"])
     part -= Pos(0, yb, 0) * F.pin_head_seat("y", face=-sign * (blen / 2.0))
+    # mount screws: clearance through the foot, into heat-set inserts in the torso pad
+    for i in range(P.MOUNT_SCREWS):
+        sx = (i - (P.MOUNT_SCREWS - 1) / 2.0) * P.MOUNT_BOLT_PITCH
+        part -= Pos(sx, yf, 0) * F.screw_clearance(P.MOUNT_SCREW, "y", foot_t + 8)
     return part
 
 
@@ -301,7 +429,9 @@ def hip_axle(hip_off: float) -> Part:
     Rigid coupling → kinematically invisible (the hip is still one Y hinge at the same
     origin). Printed/ordered as a small part; steel/CF rod, so not in the plastic mass
     budget (like the four-bar pins + split dowels)."""
-    L = (P.BODY_W / 2 + hip_off) - P.HIP_CORE_HORN_Y
+    lo, _ = P.clevis_slot(rod=True)
+    # the flange seats against the thigh's INBOARD cheek face, not on the hip pivot plane
+    L = (P.BODY_W / 2 + hip_off) - P.HIP_CORE_HORN_Y + (lo - P.CLEVIS_CHEEK_T) - 1.5
     hub_r = P.HORN_BOLT_CIRCLE / 2 + P.HEATSET[P.HORN_SCREW]["boss_r"]
     part = Pos(0, L / 2.0, 0) * _cyl_y(P.AXLE_R, L)                    # shaft 0..L
     part += _cyl_y(hub_r, LINK_T)                                     # inboard horn-clamp hub
@@ -320,37 +450,66 @@ def _segment(length: float, knee_servo: bool, rp, rd, lighten: bool) -> Part:
     return strut
 
 
-def _hip_horn_mount(strut: Part) -> Part:
-    """Horn coupling at the hip pivot (origin): a disc pad that clamps onto the hip
-    servo's Ø20 horn, with the M2 horn bolt-circle inserts + centre screw. Symmetric
-    about the pivot so the same part serves the mirrored L / R legs."""
+# Clevis pivot radii. The FORK half is the larger of each pair so its cheeks fully
+# enclose the mating tongue's hub through the joint's whole range of motion.
+KNEE_FORK_R = 8.5
+KNEE_TONGUE_R = 7.5
+ANKLE_FORK_R = 7.5
+ANKLE_TONGUE_R = 6.5
+KNEE_BLADE_L = 30.0     # how far the shank stays a blade below the knee
+
+
+def _hip_horn_mount(strut: Part, sign: int = 1) -> Part:
+    """Coupling to the hip DRIVE AXLE, on the thigh's INBOARD CHEEK.
+
+    The axle arrives from the torso, so it has to land on the inside face of the thigh
+    channel — not on the hip pivot plane, which is the thigh's own mid-plane and is
+    buried inside the part (that is where the old pad was, inside the bracket's bearing).
+    A Ø20 bolt-circle pad on the cheek takes the axle's outboard flange; the thigh then
+    hangs off the axle, which runs in the bracket's two bearings."""
     pad_r = P.HORN_BOLT_CIRCLE / 2 + P.HEATSET[P.HORN_SCREW]["boss_r"]
-    strut = strut + _cyl_y(pad_r, LINK_T)
-    strut -= F.horn_holes(axis="y", length=LINK_T + 2)
+    lo, _ = P.clevis_slot(rod=True)
+    t = P.CLEVIS_CHEEK_T
+    yc = sign * (lo - t / 2.0)                        # mid-plane of the inboard cheek
+    strut = strut + Pos(0, yc, 0) * _cyl_y(pad_r, t)
+    strut -= Pos(0, yc, 0) * F.horn_holes(axis="y", length=t - 0.2)
     return strut
 
 
+def hip_pad_y(sign: int = 1) -> float:
+    """Inboard face of the thigh where the drive axle's flange lands (leg-local Y)."""
+    lo, _ = P.clevis_slot(rod=True)
+    return sign * (lo - P.CLEVIS_CHEEK_T)
+
+
 def upper_leg(length: float, sign: int = 1) -> Part:
-    # knee servo relocated UP the thigh to the crank pivot; the knee is now passive.
-    # ``sign`` (leg side) tucks the crank servo body inboard, so the L/R thighs are
-    # mirror images (print one flipped) — necessary to pull the knee servo off the
-    # silhouette without moving the crank pivot.
-    strut = _segment(length, knee_servo=False, rp=(7.6, 8.6), rd=(6.2, 7.6), lighten=True)
+    """Thigh — a forward-opening CHANNEL that houses the whole four-bar.
+
+    The knee servo sits at the crank pivot up the thigh (the knee itself is a passive
+    pin) and the thigh forks at the knee to take the shank's tongue. ``sign`` (leg side)
+    tucks the crank servo body inboard, so the L/R thighs are mirror images — print one
+    flipped."""
+    half, yoff = P.thigh_profile()
+    strut = Pos(0, sign * yoff, 0) * _segment(length, knee_servo=False,
+                                              rp=(7.6, half), rd=(6.2, half), lighten=False)
+    strut = _thigh_channel(strut, length, sign)
     strut = _crank_pivot_boss(strut, length, sign)
-    strut = _knee_pivot_seat(strut, -length)          # passive pin/bearing at the knee
-    return _hip_horn_mount(strut)                      # driven by the hip servo horn
+    strut = _fork_seat(strut, -length, r=KNEE_FORK_R, open_dir=-1)   # knee fork takes the shank
+    return _hip_horn_mount(strut, sign)                # driven out from the hip drive axle
 
 
 def lower_leg(length: float, stance_knee: float) -> Part:
-    # In the four-bar realisation the ONLY knee servo lives on the thigh crank boss
-    # and the knee/ankle are passive pins — so the shank carries no servo pocket. The
-    # distal pocket only belongs to a 'direct' knee build (servo at the joint); cutting
-    # it in four-bar mode just lopped the bottom ~15 mm off the shank (blown-through).
-    direct = (P.KNEE_DRIVE == "direct")
-    strut = _segment(length, knee_servo=direct, rp=(7.2, 8.2), rd=(5.8, 7.2), lighten=True)
+    """Shank — a TONGUE at the knee (into the thigh's fork) and a FORK at the ankle.
+
+    In the four-bar realisation the only knee servo lives on the thigh crank boss and the
+    knee/ankle are passive pins, so the shank carries no servo pocket. The rocker is
+    welded on at the knee, in the same in-plane lane as the tongue, so the whole shank
+    top is one 7 mm blade that drops into the thigh channel."""
+    strut = _segment(length, knee_servo=False, rp=(7.2, 8.2), rd=(5.8, 7.2), lighten=True)
     strut = strut + _rocker_arm(stance_knee)          # rocker welded on the shank at the knee
-    strut = _knee_pivot_seat(strut, 0.0)              # passive pin/bearing at the knee
-    return _pivot_seat(strut, -length, boss_r=5.5)    # passive ankle pin (foot↔lower leg)
+    # the blade has to stay narrow for as long as the pushrod runs beside it in the channel
+    strut = _tongue_seat(strut, 0.0, r=KNEE_TONGUE_R, open_dir=+1, reach=KNEE_BLADE_L)
+    return _fork_seat(strut, -length, r=ANKLE_FORK_R, open_dir=-1)   # ankle fork takes the foot
 
 
 def foot_seg(length: float) -> Part:
@@ -358,7 +517,7 @@ def foot_seg(length: float) -> Part:
     ankle (foot↔lower-leg join) is a passive Ø3 pin: a bearing seat at the origin
     mates the lower-leg's distal ankle seat."""
     strut = _bone_strut(length, rp=(6.0, 7.0), rd=(4.6, 5.6))
-    strut = _pivot_seat(strut, 0.0, boss_r=5.5)       # passive ankle pin (foot↔lower leg)
+    strut = _tongue_seat(strut, 0.0, r=ANKLE_TONGUE_R, open_dir=+1)   # ankle tongue
     # flattened, slightly forward paw pad in place of a bare sphere
     pad = scale(Sphere(P.TOE_R), (1.28, 1.06, 0.82))
     paw = Pos(2.5, 0, -length) * pad
@@ -377,6 +536,8 @@ def leg_parts(leg: str) -> dict[str, Part]:
         "hip_bracket": hip_bracket(s, g["hip_off"], x_shift),
         "axle": hip_axle(g["hip_off"]),
         "upper": upper_leg(g["upper"], s),
+        "crank": crank(s),
+        "pushrod": pushrod(s),
         "lower": lower_leg(g["lower"], knee),
         "foot": foot_seg(g["foot"]),
     }

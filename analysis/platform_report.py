@@ -14,6 +14,7 @@ Pipeline (each stage a fresh subprocess for isolation + honest exit codes):
 
     1. cad.export            → cad/out/ (STLs, parts_manifest.json, previews)
     2. analysis.validate     → mass/stance/balance/torque PASS-FAIL gate
+    2b. analysis.actuator_fit→ is there physical ROOM for each actuator
     3. sim.meshes            → sim/meshes/ (sim geometry, forced refresh)
     4. analysis.platform_spec→ docs/out/platform_spec.{md,json}
     5. analysis.benchmark    → docs/out/benchmark.{md,json}
@@ -38,6 +39,7 @@ MESH_DIR = os.path.join(ROOT, "sim", "meshes")
 STAGES = [
     ("cad.export", [], "CAD export (STL + mass manifest + previews)", CAD_OUT),
     ("analysis.validate", [], "Engineering validation gate (mass/stance/balance/torque)", None),
+    ("analysis.actuator_fit", [], "Actuator fit check (is there ROOM for each servo)", None),
     ("sim.meshes", [], "Sim mesh export (inner frame + skin)", MESH_DIR),
     ("analysis.platform_spec", [], "Platform spec sheet", DOCS_OUT),
     ("analysis.benchmark", [], "Platform benchmark", DOCS_OUT),

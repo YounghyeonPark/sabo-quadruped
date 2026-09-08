@@ -2,7 +2,7 @@
 
 Sabo is a **real-world, multi-sensor AI robot**: it fuses camera + IMU + distance
 + audio into a live world model, decides with the mood/behavior brain, and drives
-14 servos — all **on-device**, no cloud. This document specifies the compute, the
+12 servos — all **on-device**, no cloud. This document specifies the compute, the
 sensor suite, the power system, and how it all maps onto the existing layered
 software (`brain/hal.py`).
 
@@ -73,14 +73,14 @@ ear mics read from (shared BCLK/LRCLK; mics on SDIN, amp on SDOUT).
 Actuator (FINALIZED 2026-07-10): **Feetech STS3215** serial bus servo — 30 kg·cm
 (~2.9 N·m), metal gears, TTL half-duplex daisy-chain, position feedback,
 torque/current control (backdrivable → compliant, **silent** hold; no digital
-holding buzz). All 14 joints share **one TTL serial bus**; the PCA9685 PWM driver
+holding buzz). All 12 joints share **one TTL serial bus**; the PCA9685 PWM driver
 is **dropped**. The LED eyes, which used to sit on a PCA9685 PWM channel, move to
 a **Jetson hardware-PWM pin + MOSFET LED driver** (the STS3215 chain has no spare
 PWM output).
 
 ```
 3S LiPo ─┬─ buck 5V/5A ───────────────── Jetson Orin Nano (7–25 W)
-         ├─ buck/BEC 7.4V/≥15A ─┬─ TTL bus adapter ── STS3215 ×14 (daisy-chain)
+         ├─ buck/BEC 7.4V/≥15A ─┬─ TTL bus adapter ── STS3215 ×12 (daisy-chain)
          │                      └─ bulk capacitor (servo current spikes)
          ├─ Jetson PWM pin 33 ── MOSFET ── LED eyes
          └─ 3.3V ─ sensors (IMU, ToF, mic, e-nose)  [Jetson rails or a small LDO]
@@ -88,7 +88,7 @@ PWM output).
 
 - **Servo bus:** all 14 STS3215 daisy-chain on one TTL serial line via a **bus
   servo adapter** (Waveshare Bus Servo Adapter / FE-URT-1 on USB, or a buffered
-  40-pin UART). Each servo has a unique **bus ID 1..14** (`servo_channel_map.py`).
+  40-pin UART). Each servo has a unique **bus ID 1..12** (`servo_channel_map.py`).
 - **Servo voltage:** the STS3215 runs **6–7.4 V** (abs-max ~8.4 V), so it can
   **not** take 3S (11.1 V) directly — a **buck/BEC drops 3S → 7.4 V** for the
   bus rail. Separate rail + big electrolytic cap so servo inrush never browns out
@@ -122,11 +122,11 @@ graph LR
   J -- I2S SDIN --> MIC[2x MEMS mic L/R]
   J -- I2S SDOUT --> AMP[MAX98357A + speaker]
   J -- PWM pin33 --> LED[MOSFET → LED eyes]
-  ADP -- TTL bus --> S[STS3215 x14: 8 leg + waist + head-pan/pitch/tilt + ears + tail]
+  ADP -- TTL bus --> S[STS3215 x12: 8 leg + waist + head-pan/pitch + tail]
 ```
 
 The 14 STS3215 servos ride **one half-duplex TTL serial bus** off the adapter
-(bus IDs 1..14, 1 Mbps), fed by the 7.4 V rail; the adapter connects to the
+(bus IDs 1..12, 1 Mbps), fed by the 7.4 V rail; the adapter connects to the
 Jetson over **UART** (USB adapter or buffered 40-pin UART). The digital sensors
 share **one I²C bus**: BNO085 `0x4A`, VL53L1X `0x29`→re-addressed `0x30` (distinct
 addresses via **XSHUT** at boot), BME688 `0x77` — **no PCA9685 on the bus

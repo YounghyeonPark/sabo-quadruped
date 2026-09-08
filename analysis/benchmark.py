@@ -93,14 +93,12 @@ def run_gait(name: str, seconds: float = SECONDS) -> dict:
 def dof_sharing() -> dict:
     """Dual-use DOF: joints the control code drives for BOTH stabilization/gait AND
     expression — a design-efficiency metric (one motor, two jobs). Grounded in the
-    actual code paths: head_stabilize() (mj_emulate) drives head_tilt/head_pitch for
+    actual code paths: head_stabilize() (mj_emulate) drives head_pitch for
     the camera gimbal while cute_motion drives them for nod/tilt; gait.spine_wave
     drives the waist while cute_motion arches it."""
     shared = [
         {"joint": "torso_aft (waist)", "role_a": "gait spine undulation (gait.spine_wave)",
          "role_b": "expressive arch/loaf (cute_motion)"},
-        {"joint": "head_tilt", "role_a": "camera roll stabilization (head_stabilize)",
-         "role_b": "quizzical head-tilt (cute_motion)"},
         {"joint": "head_pitch", "role_a": "camera pitch stabilization (head_stabilize)",
          "role_b": "nod / head-up (cute_motion)"},
         {"joint": "head_pan", "role_a": "camera aim / look-at gimbal",

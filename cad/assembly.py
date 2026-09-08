@@ -5,7 +5,7 @@ Assembly — cat body with a waist joint + head tilt, and the kinematic chain.
 Tree (root = ``torso_fore``, a free body):
 
     torso_fore ─ FL,FR legs (hip+knee, coupled ankle)
-               ├ head_pan ─ head_tilt ─ ear_L, ear_R
+               ├ head_pan ─ head_pitch ─ ear_L, ear_R
                └ waist ─▶ torso_aft ─ RL,RR legs
                                      └ tail
 
@@ -25,8 +25,10 @@ from cad import params as P
 from cad.parts.body import torso_aft, torso_fore
 from cad.parts.ears import ear
 from cad.parts.head import head
+from cad.parts.neck import neck_column, pan_crank, pan_pushrod
 from cad.parts.leg import crank, leg_parts, pushrod, stance_linkage
-from cad.parts.tail import tail
+from cad.parts.tail import linkage_transforms as tail_linkage_transforms
+from cad.parts.tail import tail, tail_crank, tail_pushrod
 from cad.servo import DEFAULT as SERVO
 from sim.gait import ankle_couple_coef, ankle_from_knee, stance_angles
 
@@ -90,19 +92,27 @@ def kinematics() -> list[Link]:
     # head hold the camera level in roll AND pitch while the body moves (gimbal),
     # and do the cute nod/head-tilt while still. Head stays at the same place: the
     # 4mm forward offset is split across the pitch + tilt links.
-    links.append(Link("head_pan", ROOT, (P.FORE_LEN - 12, 0, P.BODY_H/2 - 2),
-                      (0, 0, 1), (-1.2, 1.2), _NECK, extra_mass=SERVO.mass_kg))
-    links.append(Link("head_pitch", "head_pan", (2, 0, 0), (0, 1, 0),
-                      P.LIM_HEAD_PITCH, _PIVOT, extra_mass=SERVO.mass_kg))
-    links.append(Link("head_tilt", "head_pitch", (2, 0, 0), (1, 0, 0),
-                      P.LIM_HEAD_TILT, head(),
+    # Yaw. The joint origin is the BEARING, down in the chest under the head ball, because
+    # that is the end of the axis the torso can support; the neck column runs up and
+    # forward from it. Its servo is not here — it is in the chest, reaching the axis
+    # through a four-bar (params.HEAD_DRIVE), so this link carries no motor mass.
+    links.append(Link("head_pan", ROOT, P.pan_origin(), (0, 0, 1), P.LIM_HEAD_PAN,
+                      neck_column(), extra_mass=0.0))
+    # The head hangs directly on PITCH: there is no roll joint (params.HEAD_ROLL_ACTUATED).
+    # Both gimbal servos live inside the head, which is the only cavity forward of the
+    # waist that can hold them.
+    # Nod. Driven DIRECTLY: the pitch servo sits on this axis inside the head with its horn
+    # bolted to the neck column, which is the one gimbal placement that does fit.
+    links.append(Link("head_pitch", "head_pan", P.pitch_origin_local(), (0, 1, 0),
+                      P.LIM_HEAD_PITCH, head(),
                       extra_mass=P.COMPONENT_MASS["camera"] + SERVO.mass_kg))
-    links.append(Link("ear_L", "head_tilt", (P.HEAD_R*0.3, P.EYE_SPACING/2, P.HEAD_R*0.7),
-                      (0, 1, 0), (-0.6, 0.6), ear(), extra_mass=SERVO.mass_kg))
-    links.append(Link("ear_R", "head_tilt", (P.HEAD_R*0.3, -P.EYE_SPACING/2, P.HEAD_R*0.7),
-                      (0, 1, 0), (-0.6, 0.6), ear(), extra_mass=0.0,
-                      actuated=not P.EARS_LINKED,
-                      couple=("ear_L", 0.0, 1.0) if P.EARS_LINKED else None))
+    # Ears: RIGID (params.EARS_ACTUATED). They are bolted to the head shell, so they carry
+    # no servo and no joint -- see the params note for why the motor budget went elsewhere.
+    for side, sgn in (("L", +1), ("R", -1)):
+        links.append(Link(f"ear_{side}", "head_pitch", P.ear_station(sgn),
+                          (0, 1, 0), (-0.6, 0.6), ear(),
+                          extra_mass=SERVO.mass_kg if (P.EARS_ACTUATED and side == "L") else 0.0,
+                          has_joint=P.EARS_ACTUATED, actuated=P.EARS_ACTUATED))
     links.append(Link("tail", "torso_aft", (-P.AFT_LEN, 0, P.BODY_H/4), (0, -1, 0),
                       (-1.0, 1.0), tail(), extra_mass=SERVO.mass_kg))
     return links
@@ -115,6 +125,12 @@ def n_motors() -> int:
 PRINTABLE = {
     "torso_fore": torso_fore(), "torso_aft": torso_aft(),
     "head": head(), "ear": ear(), "tail": tail(),
+    # the head gimbal (params.HEAD_DRIVE): the neck column is the yaw link, and the crank
+    # + pushrod reach it from the chest, where the yaw actuator had to go
+    "neck_column": neck_column(), "pan_crank": pan_crank(), "pan_pushrod": pan_pushrod(),
+    # the tail's remote four-bar (params.TAIL_DRIVE): the actuator is forward in the aft
+    # torso because nothing fits at the tail pivot itself -- see analysis/actuator_fit.py
+    "tail_crank": tail_crank(), "tail_pushrod": tail_pushrod(),
     "hipbr_F_L": leg_parts("FL")["hip_bracket"], "hipbr_F_R": leg_parts("FR")["hip_bracket"],
     "hipbr_R_L": leg_parts("RL")["hip_bracket"], "hipbr_R_R": leg_parts("RR")["hip_bracket"],
     "upper_F": leg_parts("FL")["upper"], "lower_F": leg_parts("FL")["lower"],
@@ -165,12 +181,17 @@ def full_robot() -> Part:
                   base*Tk*pl["lower"], base*Tan*pl["foot"]]
         # four-bar crank + pushrod live in the thigh frame (posed by T_hip)
         Tcr, Tpr = _linkage_transforms(leg)
-        parts += [base*Th*Tcr*crank(), base*Th*Tpr*pushrod()]
-    parts.append(Pos(P.FORE_LEN + P.NECK_L*0.4, 0, lift + P.BODY_H/2 + 8) * head())
-    parts.append(Pos(-P.AFT_LEN - 4, 0, lift + P.BODY_H/4) * (Rotation(0, -35, 0) * tail()))
+        parts += [base*Th*Tcr*pl["crank"], base*Th*Tpr*pl["pushrod"]]
+    hx, _, hz = P.head_centre()
+    parts.append(Pos(hx, 0, lift + hz) * head())
+    parts.append(Pos(*P.pan_origin()) * Pos(0, 0, lift) * neck_column())
+    aft = Pos(0, 0, lift)
+    parts.append(aft * Pos(-P.AFT_LEN, 0, P.BODY_H/4) * (Rotation(0, -35, 0) * tail()))
+    tcr, tpr = tail_linkage_transforms()
+    parts += [aft * tcr * tail_crank(), aft * tpr * tail_pushrod()]
     for s in (+1, -1):
-        parts.append(Pos(P.FORE_LEN + P.NECK_L*0.4, s*P.EYE_SPACING/2,
-                         lift + P.BODY_H/2 + P.HEAD_R*0.7) * ear())
+        ex, ey, ez = P.ear_station(s)
+        parts.append(Pos(hx + ex, ey, lift + hz + ez) * ear())
     fused = parts[0]
     for p in parts[1:]:
         fused += p

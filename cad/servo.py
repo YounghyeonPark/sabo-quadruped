@@ -48,9 +48,42 @@ class Servo:
 
     @property
     def pocket(self) -> tuple[float, float, float]:
-        """Envelope (l, w, h) to subtract from a part, with a small print clearance."""
+        """CASE envelope (l, w, h) to subtract from a part, with a small print
+        clearance. This is the servo body only — see ``flange_cut``, which the part
+        must ALSO relieve, and ``horn_seat``, which the output disc needs."""
         clr = 0.4
         return (self.body_l + 2 * clr, self.body_w + 2 * clr, self.body_h + clr)
+
+    @property
+    def flange_cut(self) -> tuple[float, float]:
+        """(span across the mounting flanges, flange thickness) with clearance.
+
+        The STS3215 case is ``body_l`` (45 mm) long but its mounting tabs reach
+        ``flange_l`` (54 mm). A pocket cut to the case alone is 9 mm too short and the
+        servo physically cannot be dropped into it — every servo boss must relieve
+        this at the output (horn) end of the case as well.
+        """
+        clr = 0.4
+        return (self.flange_l + 2 * clr, self.flange_thk + 2 * clr)
+
+    @property
+    def horn_seat(self) -> tuple[float, float]:
+        """(diameter, depth) of the counterbore the Ø``horn_dia`` output disc needs in
+        the wall between the pocket and the joint plane. Without it the horn — which is
+        fitted from outside, after the servo is seated — has nowhere to go."""
+        return (self.horn_dia + 2 * 0.6, 2.5 + 0.4)
+
+    @property
+    def shaft_offset(self) -> float:
+        """Distance from the case's geometric centre to the output-shaft axis, along
+        the body's LONG axis (``body_l``).
+
+        The STS3215's shaft is not centred: it sits ``shaft_from_end`` (12 mm) from one
+        end of a 45 mm case, i.e. 10.5 mm off centre. A pocket centred on the joint axis
+        therefore puts the servo body 10.5 mm from where it really is — which is the
+        difference between a boss that clears its neighbour and one that does not.
+        """
+        return self.body_l / 2.0 - self.shaft_from_end
 
 
 # The coreless "mini" (Mini-Pupper-class) — kept as a preset (lightest/quietest-

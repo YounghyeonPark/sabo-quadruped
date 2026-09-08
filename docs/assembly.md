@@ -21,7 +21,8 @@ the finished frame; it is not part of this bolt-up sequence except at the end.
 | torso_aft | 1 | PETG | 3 | 18% | yes | 0 |
 | head | 1 | PLA | 3 | 10% | yes | 4× M2 |
 | ear | 2 | PLA | 3 | 20% | no | 2× M2 |
-| tail | 1 | PLA | 3 | 20% | no | 4× M2 |
+| tail | 1 | PLA | 3 | 20% | no | 0 (clevis pin + welded rocker) |
+| tail_crank / tail_pushrod | 1 ea | PETG | 4 | 60% | no | 4× M2 (crank horn) |
 | hipbr_F_L / F_R / R_L / R_R | 1 ea | PETG | 4 | 25% | yes | 0 |
 | upper_F / upper_R | 2 ea | PETG | 4 | 30% | yes | 4× M2 |
 | lower_F / lower_R | 2 ea | PETG | 4 | 30% | no | 0 |
@@ -29,7 +30,8 @@ the finished frame; it is not part of this bolt-up sequence except at the end.
 | crank_F / crank_R | 2 ea | PETG | 4 | 60% | no | 4× M2 |
 | pushrod_F / pushrod_R | 2 ea | PETG | 4 | 60% | no | 0 |
 
-**Total heat-set inserts per robot: 48 × M2.** (Servo *case* screws thread into
+**Total heat-set inserts per robot: 72 (64 × M2 + 8 × M3)** — counted from the CAD by
+`analysis/hardware_bom.py`, which `cad/print_manifest.py` now checks itself against. (Servo *case* screws thread into
 the STS3215's own tapped flanges, and the four-bar *pins* are retained by e-clip /
 shoulder-screw-head seats — neither uses an insert.)
 
@@ -48,7 +50,109 @@ supports multi-material, otherwise PETG is fine for a first build.
 | `FIT_CLEARANCE` | 0.20 mm | part-to-part locating / registration |
 | `PIN_CLEARANCE` | 0.15 mm radial | rotating Ø3 pin-in-bore pivots (four-bar, knee, ankle) |
 | `PRESS_INTERFERENCE` | 0.10 mm radial | a pin pressed/fixed into a link (tighter bore) |
-| servo pocket | 0.40 mm/face | `cad/servo.py :: SERVO.pocket` (unchanged) |
+| `CLEVIS_GAP` | 0.35 mm/face | running clearance of a tongue inside its fork slot |
+| servo pocket | 0.40 mm/face | `cad/servo.py :: SERVO.pocket` (case), + `flange_cut`, + `horn_seat` |
+
+### Joint architecture — every pivot is a clevis
+
+Two links that turn on one pin cannot both be drawn on the leg's centre plane, so each
+pivot is a **fork + tongue in double shear**: the pin passes cheek → tongue → cheek and is
+retained by an E-clip at both ends, never cantilevered.
+
+| joint | fork (2 cheeks) | tongue (1 blade) |
+|---|---|---|
+| hip | — (thigh bolts to the drive axle's flange on its inboard cheek) | — |
+| knee | `upper_*` | `lower_*` |
+| ankle | `lower_*` | `foot_*` |
+| four-bar C | `pushrod_*` runs in its own lane beside the crank | `crank_*` |
+| four-bar R | `pushrod_*` | rocker (moulded into `lower_*`) |
+| tail | `tail` (mouth opens forward) | tongue on `torso_aft` |
+
+The thigh is not a solid strut but a forward-opening **channel**, and the whole four-bar
+lives inside it. Across the channel, inboard → outboard:
+
+```
+ knee servo body | crank / rocker / shank tongue | pushrod | outboard cheek
+     y <= -3.85  |         -3.5 .. +3.5          | 3.85..9.85 |  10.2 .. 14.7   (mm, x leg side)
+```
+
+Lane widths come from `params.clevis_slot()`; change `CLEVIS_TONGUE_T` and every fork
+slot, tongue and the thigh's own width re-fit together.
+
+### Tail — a remote drive, for the same reason the hip has one
+
+The tail pivot sits at the rear extremity of the frame, where the body has tapered to
+almost nothing. `python -m analysis.actuator_fit` measures that **no STS3215 can be housed
+there** — 45 % of its boss falls outside the ribcage, in every orientation. So the tail is
+driven the way the hip already is: the actuator moves to where there *is* room and reaches
+the joint through a linkage.
+
+| | |
+|---|---|
+| Servo station | `params.TAIL_SERVO` = (−54, 0) in the aft-torso frame — the one station `actuator_fit.capacity('aft')` finds room at |
+| Mechanism | crank-rocker four-bar, ground 38.5 mm (servo shaft → tail pivot) |
+| Links | crank 21.5 / coupler 45 / rocker 18 mm (`params.TAIL_FOURBAR`) |
+| Travel | **2.08 rad** against the ±1.0 rad the joint commands; transmission angle 42–140° |
+| Parts | `tail_crank`, `tail_pushrod`, rocker moulded into `tail` |
+
+Link lengths were chosen with the same `analysis/fourbar.py` the knee uses, and the torso
+carries the pushrod's corridor, the crank's swept disc and the tail's swing clearance.
+
+### Head size is an actuator constraint
+
+The head is a hollow ball whose socket is carved out of the chest, so its diameter trades
+against the room in front of the waist. `python -m analysis.actuator_fit` measures both:
+
+| HEAD_R | head dia | housings in the head | housings in the chest |
+|--:|--:|--:|--:|
+| 46 | 92 | 1 | 1 |
+| **50** | **100** | **2** | **1** |
+| 52 | 104 | 2 | 0 |
+| 62 | 124 | 3 | 0 |
+
+`HEAD_R = 50` is the smallest radius that buys a second slot in the head and the largest
+that still leaves one in the chest. The chest slot also needs the gimbal pushed forward to
+`params.HEAD_MOUNT_X` — with the head centre inside the ribcage (where it used to be), the
+socket takes the whole front of the chest and nothing can be housed there at all.
+
+That gives **three** places an expression actuator can live forward of the waist, against
+four joints that want one (head pan/pitch/tilt + ears). Mounting three gimbal servos on
+their own axes needs about a Ø124 head — two thirds of the body's length.
+
+### Head gimbal — pitch direct, yaw remote
+
+`analysis.actuator_fit.gimbal_layout` measures that a gimbal's motors cannot BOTH sit on
+their own axes inside this head: the axes meet at a point, so each has to step aside along
+its own axis, and two STS3215 housings do not both fit that way until roughly a Ø148 head.
+One does, centred — so:
+
+| axis | drive | where the motor is |
+|---|---|---|
+| **pitch** (nod) | direct | inside the head, on the axis, horn bolted to the neck yoke |
+| **yaw** (pan) | four-bar | in the chest at `PAN_SERVO`; ground 41 mm, crank 17 / coupler 47 / rocker 13.5, **2.03 rad** against ±1.0 commanded, μ 42–140° |
+
+The topology is forced. The head is the last link in the chain, so a servo inside it can
+only reach the one joint immediately above it; the other axis has to be driven from
+further up, and the only cavity there is the chest.
+
+Two placement consequences worth knowing before changing anything:
+
+- The **yaw axis is 18 mm behind the head's centre** (`HEAD_GIMBAL_STACK`). It has to be:
+  the head ball leaves 2 mm under it at its own centre and 15 mm at 18 mm back, and the
+  pan linkage needs a horizontal plane to run in. The head itself does not move — only the
+  axis — which gives it a slight sideways shift as it turns, the way a real neck does.
+- The **head sits 8 mm above the shoulder line** (`HEAD_RISE`), which is what finally gave
+  the pan rocker room to pass under the ball.
+- The **crank is deliberately small** (17 mm). A longer one reaches the same range with a
+  nicer transmission angle, but its swept disc runs back past the waist plane into the aft
+  half.
+
+### Leg → torso attachment
+
+Each hip bracket **bolts** to a flat pad on the torso flank at |y| = `BODY_W/2` with
+2× M3 screws into heat-set inserts (`params.MOUNT_*`). The ribcage is relieved outboard of
+that pad so the bracket lands on a real face, and a swept scallop clears the knee servo's
+housing as the hip turns.
 
 ### Fastener families
 - **Heat-set inserts** (`params.HEATSET`): M2 (Ø3.2 melt hole, 4.0 mm deep) and
@@ -62,12 +166,21 @@ supports multi-material, otherwise PETG is fine for a first build.
   its printed pocket and is held by **M2 clearance screws** through the boss into
   the STS3215's tapped flange holes. Verify the exact flange pattern against the
   datasheet before drilling metal — the CAD holes are the indicative pattern.
-- **Four-bar / knee / ankle pins**: Ø3 dowels or M3 shoulder screws. Rotating
-  bore = `PIN_R + PIN_CLEARANCE`; each pivot has a head/e-clip retention
-  counterbore on the outer face (`fasteners.pin_head_seat`).
+- **Four-bar / knee / ankle pins**: Ø3 dowels. Rotating bore = `PIN_R + PIN_CLEARANCE`;
+  each pivot has an E-clip retention counterbore on **both** outer cheeks
+  (`fasteners.pin_head_seat`).
+- **Hip drive**: a Ø6 axle per leg running in two **686ZZ** bearings (6×13×5) — one in the
+  torso core wall, one in the hip bracket — with a Ø20 flange bolted to the thigh's
+  inboard cheek.
 
 All fastener geometry is generated by `cad/parts/fasteners.py` — change a size in
 `params.py` and every part re-fits.
+
+**The orderable list** — every insert, screw, pin, E-clip, bearing, axle and dowel with
+its size and quantity — is counted from this CAD by
+[`docs/hardware_bom.md`](hardware_bom.md) (`python -m analysis.hardware_bom`). It also
+flags what is *not* yet housed: the five expression servos (head pan/pitch/tilt, ears,
+tail) are in the kinematics and the mass budget but have no pocket cut for them yet.
 
 ---
 
@@ -120,7 +233,7 @@ the hole is whole again; the head's 4× M2 neck-stub inserts sit entirely in `he
 
 ## 4. Wiring (STS3215 TTL daisy-chain, `hardware/servo_channel_map.py`)
 
-14 servos share one 3-wire (GND / V+ / signal) half-duplex TTL bus, IDs 1–14.
+12 servos share one 3-wire (GND / V+ / signal) half-duplex TTL bus, IDs 1–12.
 Physical pass-throughs (holes only, no connectors) are provided:
 
 - **Each leg-mount node** has a bus channel above the servo pocket so the leg
@@ -133,7 +246,7 @@ Physical pass-throughs (holes only, no connectors) are provided:
   spare loom through these.
 
 Recommended chain order (shortest trunk): front legs (1–4) → rear legs (5–8) →
-waist (9) → head pan/pitch/tilt (10–12) → ear_L (13) → tail (14). LED eyes are
+waist (9) → head pan/pitch (10–11) → tail (12). LED eyes are
 **not** on the bus (Jetson PWM pin — see the channel map).
 
 ---

@@ -14,9 +14,9 @@ brain/  ──uses──▶  brain.hal.Body / brain.hal.Senses  ◀──impleme
 
 | File | What it is |
 |---|---|
-| `servo_channel_map.py` | The 14 servos → **STS3215 serial-bus IDs**, with per-servo angle→position-count calibration (+ inverse for feedback). LED-eye now on a Jetson PWM pin. **Pure data/math, no hardware imports.** |
+| `servo_channel_map.py` | The 12 servos → **STS3215 serial-bus IDs**, with per-servo angle→position-count calibration (+ inverse for feedback). LED-eye now on a Jetson PWM pin. **Pure data/math, no hardware imports.** |
 | `jetson_backend.py` | `HardwareBody` (HAL verbs → STS3215 serial-bus writes) and `HardwareSenses` (stereo eyes / BNO085 / VL53L1X ×2 / 2× ear mics → `hearing()` / BME688 e-nose → `smell()`). Every driver import is guarded → **stub mode** when hardware is absent. |
-| `run_on_hardware.py` | Runs `RoboKitten` ticks against the backend (real or stub). |
+| `run_on_hardware.py` | Runs `Sabo` ticks against the backend (real or stub). |
 
 ## Stub mode (dev machine)
 
@@ -41,8 +41,8 @@ Check `body.live` / `senses.live` to see whether real hardware is attached.
 
 1. **Flash JetPack 6** (Ubuntu 22.04); enable I2C on the 40-pin header (bus 7 on
    the Orin Nano; `board.I2C()`/Blinka picks it up) and hardware PWM on pin 33.
-2. **Wire the STS3215 serial bus:** all 14 servos daisy-chain on one half-duplex
-   TTL line, bus IDs 1..14 (`servo_channel_map.SERVOS`), 1 Mbps, fed by a
+2. **Wire the STS3215 serial bus:** all 12 servos daisy-chain on one half-duplex
+   TTL line, bus IDs 1..12 (`servo_channel_map.SERVOS`), 1 Mbps, fed by a
    **7.4 V buck/BEC** (STS3215 is 6–7.4 V — do **not** feed it 3S directly) with
    a bulk cap. Connect via a **bus servo adapter** (Waveshare / FE-URT-1 on USB →
    `/dev/ttyUSB0`, or a buffered UART → `/dev/ttyTHS1`). Override the port with
@@ -98,9 +98,7 @@ the servo bus** (Jetson PWM pin 33 + MOSFET).
 | 9 | waist | -0.45..0.65 | spine flex/arch |
 | 10 | head_pan | ±1.4 | bearing, + = kitten's left |
 | 11 | head_pitch | ±0.7 | nod + camera-pitch gimbal |
-| 12 | head_tilt | ±0.7 | quizzical roll + camera-roll gimbal |
-| 13 | ear_L | ±0.6 | EARS_LINKED: ear_R follows mechanically |
-| 14 | tail | ±1.2 | wag rides on the base angle |
+| 12 | tail | ±1.2 | wag rides on the base angle |
 | — | **led_eye** | — | Jetson PWM pin 33 → MOSFET (blink = fade, set_eyes = duty) |
 
 ### Calibration

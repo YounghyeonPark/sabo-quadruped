@@ -7,6 +7,7 @@ import numpy as np
 from training.deploy_policy import (ACTION_JOINTS, LearnedGait, OBS_DIM,
                                     build_obs, default_pose)
 from training.export_urdf import build_urdf
+from cad import params as P
 from sim.gait import ankle_from_knee, stance_angles
 
 
@@ -18,9 +19,11 @@ def test_urdf_wellformed_and_counts():
     fixed = [j for j in joints if j.get("type") == "fixed"]
     actuated = [j for j in rev if j.find("mimic") is None]
     mimic = [j for j in rev if j.find("mimic") is not None]
-    assert len(actuated) == 14          # the 14 motors (incl. head pitch+tilt gimbal)
-    assert len(fixed) == 4              # rigid abduction ×4
-    assert len(mimic) == 5              # 4 hocks + linked ear_R
+    # counts come from the design, not from a number typed here — the ears going rigid
+    # (params.EARS_ACTUATED) has to move this test without anyone remembering to
+    assert len(actuated) == P.N_SERVOS
+    assert len(fixed) == len(P.LEGS) + (0 if P.EARS_ACTUATED else 2)   # abduction + rigid ears
+    assert len(mimic) == len(P.LEGS) + (1 if (P.EARS_ACTUATED and P.EARS_LINKED) else 0)
     # every revolute joint has finite limits + effort
     for j in rev:
         lim = j.find("limit")

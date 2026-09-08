@@ -28,10 +28,10 @@ Self-sourced build. Prices = typical maker USD (~2025–26), low–high (vendor/
 
 | Item | Qty | Unit $ (lo–hi) | Subtotal $ | Note |
 |---|--:|--:|--:|---|
-| Feetech STS3215 serial bus servo (30 kg·cm) | 14 | 14–18 | 196–252 | 14 joints: 8 leg + waist + head pan/pitch/tilt + ears + tail; TTL daisy-chain, position feedback, torque control |
+| Feetech STS3215 serial bus servo (30 kg·cm) | 12 | 14–18 | 168–216 | 12 joints: 8 leg + waist + head pan/pitch + tail; TTL daisy-chain, position feedback, torque control |
 | TTL bus servo adapter (Waveshare / FE-URT-1) | 1 | 5–12 | 5–12 | UART↔half-duplex TTL bus for the STS3215 chain (replaces PCA9685) |
 | LED-eye driver (MOSFET + eye LEDs) | 1 | 2–6 | 2–6 | eyes off the servo bus → Jetson hardware-PWM pin + MOSFET |
-| **Actuators subtotal** | | | **203–270** | |
+| **Actuators subtotal** | | | **175–234** | |
 
 ## Power
 
@@ -47,18 +47,17 @@ Self-sourced build. Prices = typical maker USD (~2025–26), low–high (vendor/
 
 | Item | Qty | Unit $ (lo–hi) | Subtotal $ | Note |
 |---|--:|--:|--:|---|
-| M2/M3 screws + heat-set inserts | 1 | 10–18 | 10–18 | assembly |
-| Servo horns / pins / small bearings | 1 | 12–25 | 12–25 | joint hardware |
+| Joint + fastener hardware (see docs/hardware_bom.md) | 1 | 38–83 | 38–83 | counted from the CAD: `python -m analysis.hardware_bom` |
 | TPU for foot pads | 1 | 5–10 | 5–10 | grippy toe caps |
 | Faux-fur / silicone skin (optional) | 1 | 0–25 | 0–25 | cosmetic over-skin, PLAN §3.3 (optional) |
-| 3D-print filament (~605 g PLA/PETG) | 1 | 12–17 | 12–17 | computed from CAD mass |
-| **Mechanical subtotal** | | | **39–95** | |
+| 3D-print filament (~657 g PLA/PETG) | 1 | 13–18 | 13–18 | computed from CAD mass |
+| **Mechanical subtotal** | | | **56–136** | |
 
 ## Total (one robot)
 
 | | Low | Mid | High |
 |---|--:|--:|--:|
-| **Build cost (USD)** | **$710** | **$836** | **$963** |
+| **Build cost (USD)** | **$699** | **$834** | **$968** |
 
 ### One-time tools (excluded from build cost)
 
@@ -66,4 +65,4 @@ Self-sourced build. Prices = typical maker USD (~2025–26), low–high (vendor/
 - 3D printer: $0–0 (assumed owned)
 - Soldering iron + supplies: $0–0 (assumed owned)
 
-_Cost drivers: 14× STS3215 servos and the Jetson dominate (~57% of a mid build). Cutting servo count or grade, or a cheaper SBC, moves the total most._
+_Cost drivers: 12× STS3215 servos and the Jetson dominate (~53% of a mid build). Cutting servo count or grade, or a cheaper SBC, moves the total most._

@@ -207,7 +207,7 @@ def build_primitive_mjcf() -> str:
             f'          {_box_geom((-m(P.TAIL_L)/2,0,0), (m(P.TAIL_L),m(18),m(18)))}\n'
             '        </body>\n      </body>\n')
 
-    # --- head subtree ---
+    # --- head subtree (pan -> pitch -> head; no roll joint, no ear joints) ---
     head_plastic = 4/3*math.pi*P.HEAD_R**3 * 1e-9 * DENS * FILL_HEAD
     neck_mass = 20*20*20 * 1e-9 * DENS * FILL_MISC + sv
     ear_mass = P.EAR_BASE*8*P.EAR_H * 1e-9 * DENS * FILL_MISC + sv
@@ -215,18 +215,16 @@ def build_primitive_mjcf() -> str:
             '        <joint name="head_pan" type="hinge" axis="0 0 1" range="-1.2 1.2"/>\n'
             f'        {_inertial(neck_mass, (0,0,0), (m(20),m(20),m(20)))}\n'
             f'        {_box_geom((0,0,0), (m(20),m(20),m(20)))}\n'
-            f'        <body name="head_tilt" pos="{m(4):.5f} 0 0">\n'
-            f'          <joint name="head_tilt" type="hinge" axis="1 0 0" '
-            f'range="{P.LIM_HEAD_TILT[0]} {P.LIM_HEAD_TILT[1]}"/>\n'
-            f'          {_inertial(head_plastic+c["camera"]+sv, (m(0.3*P.HEAD_R),0,0), (m(2*P.HEAD_R),m(2*P.HEAD_R),m(2*P.HEAD_R)))}\n'
+            f'        <body name="head_pitch" pos="{m(P.HEAD_GIMBAL_STACK):.5f} 0 0">\n'
+            f'          <joint name="head_pitch" type="hinge" axis="0 1 0" '
+            f'range="{P.LIM_HEAD_PITCH[0]} {P.LIM_HEAD_PITCH[1]}"/>\n'
+            f'          {_inertial(head_plastic+c["camera"]+2*sv, (m(0.3*P.HEAD_R),0,0), (m(2*P.HEAD_R),m(2*P.HEAD_R),m(2*P.HEAD_R)))}\n'
             f'          <geom type="sphere" pos="{m(0.3*P.HEAD_R):.5f} 0 0" size="{m(P.HEAD_R):.5f}" '
             'contype="0" conaffinity="0" rgba="0.82 0.83 0.88 1"/>\n'
             f'          <body name="ear_L" pos="{m(P.HEAD_R*0.3):.5f} {m(P.EYE_SPACING/2):.5f} {m(P.HEAD_R*0.7):.5f}">\n'
-            '            <joint name="ear_L" type="hinge" axis="0 1 0" range="-0.6 0.6"/>\n'
             f'            {_inertial(ear_mass, (0,0,0), (m(P.EAR_BASE),m(8),m(P.EAR_H)))}\n'
             f'          </body>\n'
             f'          <body name="ear_R" pos="{m(P.HEAD_R*0.3):.5f} {-m(P.EYE_SPACING/2):.5f} {m(P.HEAD_R*0.7):.5f}">\n'
-            '            <joint name="ear_R" type="hinge" axis="0 1 0" range="-0.6 0.6"/>\n'
             f'            {_inertial(ear_mass-sv, (0,0,0), (m(P.EAR_BASE),m(8),m(P.EAR_H)))}\n'
             f'          </body>\n        </body>\n      </body>\n')
 
@@ -279,9 +277,8 @@ def build_primitive_mjcf() -> str:
     xml += ('    <position name="torso_aft" joint="torso_aft" '
             f'ctrlrange="{P.LIM_WAIST[0]} {P.LIM_WAIST[1]}"/>\n'
             '    <position name="head_pan" joint="head_pan" ctrlrange="-1.2 1.2"/>\n'
-            f'    <position name="head_tilt" joint="head_tilt" '
-            f'ctrlrange="{P.LIM_HEAD_TILT[0]} {P.LIM_HEAD_TILT[1]}"/>\n'
-            '    <position name="ear_L" joint="ear_L" ctrlrange="-0.6 0.6"/>\n'
+            f'    <position name="head_pitch" joint="head_pitch" '
+            f'ctrlrange="{P.LIM_HEAD_PITCH[0]} {P.LIM_HEAD_PITCH[1]}"/>\n'
             '    <position name="tail" joint="tail" ctrlrange="-1.0 1.0"/>\n')
     xml += "  </actuator>\n</mujoco>\n"
     return xml

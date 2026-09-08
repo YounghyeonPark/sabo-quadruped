@@ -58,9 +58,12 @@ Right-side legs `invert` (mirror horns). STS3215 = 12-bit, center 2048, ≈651.9
 | 9  | waist      | spine           | −0.45 … 0.65| −26…37 | — |
 | 10 | head_pan   | gimbal yaw      | −1.4 … 1.4  | ±80    | — |
 | 11 | head_pitch | gimbal nod      | −0.7 … 0.7  | ±40    | — |
-| 12 | head_tilt  | gimbal roll     | −0.7 … 0.7  | ±40    | — |
-| 13 | ear_L      | ear (ear_R follows mechanically) | −0.6 … 0.6 | ±34 | — |
-| 14 | tail       | tail            | −1.2 … 1.2  | ±69    | — |
+| 12 | tail       | tail            | −1.2 … 1.2  | ±69    | — |
+
+**Not on the bus.** Head **roll** is corrected electronically, not mechanically
+(`params.HEAD_ROLL_ACTUATED`), and the **ears are rigid** (`params.EARS_ACTUATED`) — the
+head has room for two servo housings, not four, so those two axes were traded away. See
+[`docs/camera_stabilization.md`](camera_stabilization.md) for the EIS side.
 
 **Four-bar knee:** the knee servo drives the crank; the linkage converts crank → knee
 angle, so the ID 2/4/6/8 position command is the **crank-side** value — re-measure the

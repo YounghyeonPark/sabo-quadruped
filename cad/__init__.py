@@ -1,1 +1,1 @@
-"""RoboKitten parametric CAD — printable parts + assembly (build123d)."""
+"""Sabo parametric CAD — printable parts + assembly (build123d)."""

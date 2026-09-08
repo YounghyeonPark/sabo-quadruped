@@ -29,9 +29,9 @@ from sim.mjcf import build_mjcf
 
 OUT = os.path.join(os.path.dirname(__file__), "out")
 LEG_JOINTS = [f"{leg}_{j}" for leg in P.LEGS for j in ("hip", "knee")]   # motorized
-ACTUATED = LEG_JOINTS + ["torso_aft", "head_pan", "head_pitch", "head_tilt", "ear_L", "tail"]
+ACTUATED = LEG_JOINTS + ["torso_aft", "head_pan", "head_pitch", "tail"]
 ALL_HINGES = ([f"{leg}_{j}" for leg in P.LEGS for j in ("hip", "knee", "ankle")]
-              + ["torso_aft", "head_pan", "head_pitch", "head_tilt", "ear_L", "ear_R", "tail"])
+              + ["torso_aft", "head_pan", "head_pitch", "tail"])
 
 # Max rate (rad/s) a motorized joint target may slew. Abrupt setpoint steps from
 # the gait are what drove the position servo into its stall torque; ramping them
@@ -73,7 +73,7 @@ class Rig:
         self.qadr = {n: self.model.jnt_qposadr[_id(self.model, mujoco.mjtObj.mjOBJ_JOINT, n)]
                      for n in ALL_HINGES}
         self.torso = _id(self.model, mujoco.mjtObj.mjOBJ_BODY, "torso_fore")
-        self.head = _id(self.model, mujoco.mjtObj.mjOBJ_BODY, "head_tilt")  # camera mount
+        self.head = _id(self.model, mujoco.mjtObj.mjOBJ_BODY, "head_pitch")  # camera mount
         # slew-rate limiter: cap how fast a motorized target may move (rad/s) so
         # step-changes in the gait setpoint ramp in over several control ticks
         # instead of spiking the position servo against its stall torque.
@@ -90,7 +90,7 @@ class Rig:
             self.set_target(f"{leg}_hip", hip, hard=True)
             self.set_target(f"{leg}_knee", knee, hard=True)
             self.set_target(f"{leg}_ankle", gait.ankle_from_knee(leg, knee), hard=True)
-        for n in ("torso_aft", "head_pan", "head_pitch", "head_tilt", "ear_L", "tail", "ear_R"):
+        for n in ("torso_aft", "head_pan", "head_pitch", "tail"):
             self.set_target(n, 0.0, hard=True)
         mujoco.mj_forward(self.model, self.data)
 
@@ -176,8 +176,8 @@ def level_trim(rig: Rig, t: float, scale: float = 1.0):
 
 
 # ------------------------------------------------------------------ head gimbal (camera stab)
-# The head carries the camera and has a roll joint (head_tilt, axis x) on the SAME
-# axis as the torso's residual walking roll. Counter-rotating head_tilt by the IMU
+# The head carries the camera. It has no roll joint (params.HEAD_ROLL_ACTUATED is
+# False) -- roll is corrected electronically, which is what the IMU
 # roll holds the camera level while the body moves — a 1-DOF active gimbal using an
 # existing motor (no new hardware). Runs identically on the robot (BNO085 -> servo).
 HEAD_STAB_KROLL = 1.0     # counter-roll gain -> head_tilt (proportional; >1 overshoots)
@@ -185,13 +185,16 @@ HEAD_STAB_KPITCH = 1.0    # counter-pitch gain -> head_pitch
 
 
 def head_stabilize(rig: Rig, t: float):
-    """2-axis camera gimbal: counter the torso's roll with head_tilt and its pitch
-    with head_pitch, so the head-mounted camera stays level in both axes while the
-    body moves. Uses the IMU (BNO085) signal; runs identically on hardware."""
-    roll, pitch = rig.torso_roll_pitch()
-    lo_r, hi_r = P.LIM_HEAD_TILT
+    """Mechanical half of the camera gimbal: counter the torso's PITCH with head_pitch so
+    the camera stays level fore-aft while the body moves. Uses the IMU (BNO085) signal;
+    runs identically on hardware.
+
+    Roll is deliberately not here. It is a rotation in the image plane, so electronic
+    stabilisation removes it without a joint (docs/camera_stabilization.md) -- which is
+    what freed the actuator, since the head only has room for two.
+    ``rig.torso_roll_pitch()[0]`` is the signal that EIS consumes."""
+    _, pitch = rig.torso_roll_pitch()
     lo_p, hi_p = P.LIM_HEAD_PITCH
-    rig.set_target("head_tilt", max(lo_r, min(hi_r, -HEAD_STAB_KROLL * roll)))
     rig.set_target("head_pitch", max(lo_p, min(hi_p, -HEAD_STAB_KPITCH * pitch)))
 
 
@@ -213,7 +216,7 @@ def gait_control(rig: Rig, t: float, preset: dict):
         rig.set_target(f"{leg}_hip", hip)
         rig.set_target(f"{leg}_knee", knee)
     rig.set_target("torso_aft", gait.spine_wave(phase, preset))  # subtle feline spine undulation
-    head_stabilize(rig, t)                       # active camera-roll gimbal
+    head_stabilize(rig, t)                       # active camera-pitch gimbal
 
 
 # ------------------------------------------------------------------ run
@@ -305,7 +308,7 @@ def render_reports(gait_name, log, fell_at, travel):
     ax[2].axhline(SERVO.stall_nm, ls="--", c="#d1483f", lw=1, label="servo stall")
     ax[2].set_xlabel("time (s)"); ax[2].legend(loc="upper right", fontsize=8)
     if fell_at: [a.axvline(fell_at, c="#d1483f", lw=1) for a in ax]
-    fig.suptitle(f"RoboKitten — {gait_name}  (travel {travel*100:.0f} cm)")
+    fig.suptitle(f"Sabo — {gait_name}  (travel {travel*100:.0f} cm)")
     fig.tight_layout(); fig.savefig(os.path.join(OUT, f"{gait_name}_telemetry.png"), dpi=110)
     plt.close(fig)
 

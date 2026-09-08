@@ -1,1 +1,1 @@
-"""Parametric printable parts for RoboKitten (build123d)."""
+"""Parametric printable parts for Sabo (build123d)."""

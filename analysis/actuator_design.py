@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import math
 
+from cad import params as P
+
 # ---- requirement (from the sim gaits + a safety factor) ----------------------
 REQ_PEAK_NM = 1.2         # peak leg-joint torque in walk/trot (tuned sim)
 SAFETY = 1.5
@@ -73,8 +75,8 @@ def main() -> None:
     print(f"  → no-load speed  : {r['out_speed_rads']:.1f} rad/s "
           f"(need ≥{NEED_SPEED_RADS:.0f})  {'OK' if r['out_speed_rads']>=NEED_SPEED_RADS else 'SLOW'}")
     print(f"  → module mass    : {r['mass']*1000:.0f} g/joint  "
-          f"(×14 = {r['mass']*14:.2f} kg of actuators)")
-    print(f"  → cost           : ${r['cost']:.0f}/joint  (×14 = ${r['cost']*14:.0f})")
+          f"(x{P.N_SERVOS} = {r['mass']*P.N_SERVOS:.2f} kg of actuators)")
+    print(f"  -> cost           : ${r['cost']:.0f}/joint  (x{P.N_SERVOS} = ${r['cost']*P.N_SERVOS:.0f})")
     print(f"\n  Robot total est. : ~{0.43 + 0.30 + r['mass']*14:.2f} kg "
           f"(plastic+electronics+actuators)")
     print("""

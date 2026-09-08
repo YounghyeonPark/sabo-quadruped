@@ -197,7 +197,9 @@ From `docs/assembly.md §5`. Fasteners per joint called out inline.
    Connect **one servo at a time** to the bus adapter and write its target ID before
    chaining, per `servo_channel_map.all_channels()` (ID→name): FL_hip=1, FL_knee=2,
    FR_hip=3, FR_knee=4, RL_hip=5, RL_knee=6, RR_hip=7, RR_knee=8, waist=9,
-   head_pan=10, head_pitch=11, head_tilt=12, ear_L=13, tail=14. Chaining two
+   head_pan=10, head_pitch=11, tail=12. (No head-roll or ear servos: the head fits
+   two housings, so roll went to electronic stabilisation and the ears are rigid.)
+   Chaining two
    factory-default (ID 1) servos = a bus-ID collision → nothing addressable. After
    each ID assignment, set the servo center (2048) and write the soft limits from
    `scm.SERVOS[name].lo_rad/hi_rad`.

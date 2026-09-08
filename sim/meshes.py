@@ -25,7 +25,7 @@ from cad.assembly import PRINTABLE, kinematics
 MESH_DIR = os.path.join(os.path.dirname(__file__), "meshes")
 
 # bodies that get a translucent skin over the frame: link/root name -> skin mesh
-SKIN_OVER = {"torso_fore": "skin_fore", "torso_aft": "skin_aft", "head_tilt": "skin_head"}
+SKIN_OVER = {"torso_fore": "skin_fore", "torso_aft": "skin_aft", "head_pitch": "skin_head"}
 
 
 def _export(part, name: str, tolerance: float = 0.001) -> None:

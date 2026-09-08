@@ -64,7 +64,12 @@ SHELL_T = 2.4         # print wall thickness (nozzle-driven, FIXED — not scale
 FORE_LEN = 90.0 * SCALE
 AFT_LEN = 90.0 * SCALE
 LIM_WAIST = (-0.45, 0.65)   # rad: - = flex belly-down, + = arch back up (halloween cat)
-LIM_HEAD_TILT = (-0.7, 0.7)   # rad: head roll — the quizzical tilt + camera-roll gimbal
+# Head ROLL is not a joint. The head cavity holds two servo housings, not three
+# (analysis.actuator_fit.capacity), and a third gimbal axis would need a ~Dia124 head.
+# Roll is the one axis a camera can fix in software -- it is a rotation in the image
+# plane -- so it is handled by electronic stabilisation (docs/camera_stabilization.md)
+# and the mechanism keeps pan + pitch, which actually have to aim.
+HEAD_ROLL_ACTUATED = False
 LIM_HEAD_PITCH = (-0.7, 0.7)  # rad: head pitch — nod + camera-pitch gimbal
 
 # --------------------------------------------------------------- legs (4 DOF, digitigrade)
@@ -105,7 +110,15 @@ REAR = _scale_lengths(dict(hip_off=39.0, upper=64.0, lower=80.5, foot=31.5,
 
 # expression joints
 ABDUCTION_ACTIVE = False   # legs are sagittal; turn by gait (fewer motors)
-EARS_LINKED = True         # both ears on one motor (ear_R follows ear_L)
+# Ears are FIXED (bolted to the head, not driven). This is not a styling choice: the body
+# has three places an expression actuator can live forward of the waist (two in the head,
+# one in the chest -- ``analysis.actuator_fit.capacity``) against four joints that wanted
+# one. PLAN.md's own minimum viable set breaks the tie: "Ears can be a fast-follow".
+# They stay in the kinematics as rigid links so the silhouette and mass are unchanged, and
+# ``brain.hal.Body.set_ears`` stays in the interface -- a later revision with a smaller
+# actuator can drive them without the brain changing.
+EARS_ACTUATED = False
+EARS_LINKED = True         # if ever actuated: both ears on one motor (ear_R follows ear_L)
 
 # --------------------------------------------------------------- four-bar knee linkage
 # The knee is driven by a proximal (thigh-mounted) crank through a rigid four-bar
@@ -141,11 +154,148 @@ LIM_KNEE = (0.0, 2.6)   # generic default; per-leg caps live in FRONT/REAR['lim_
 LIM_ANKLE = (-2.2, 2.2)
 
 # --------------------------------------------------------------- head / ears / tail
-HEAD_R = 46.0 * SCALE
+# Head size is an ACTUATOR constraint as much as a styling one. ``analysis.actuator_fit``
+# measures how many servo housings the head cavity admits when they are laid out as a
+# centred group: 1 up to R=48.6, 2 from there, and not 3 until R=61 (a head 68% of the
+# body's length, which is past baby-schema into caricature). R=50 buys the second slot
+# with margin, at +5 mm of diameter and ~12 g of shell.
+HEAD_R = 50.0 * SCALE
 NECK_L = 34.0 * SCALE
+# Where the neck gimbal's first joint (pan) sits on the chest. The head centre lands
+# HEAD_GIMBAL_STACK mm ahead of it, and it matters where that is: with the head centre
+# INSIDE the ribcage, ``body._head_socket`` carves out the whole front of the chest and no
+# actuator can be housed there at all. Pushing the pan joint forward until the head centre
+# clears the torso's nose opens exactly one chest slot (measured; further out adds nothing,
+# the chest's own taper is then the limit).
+# =============================================================== head gimbal (REMOTE)
+# Neither gimbal axis can be driven directly. ``analysis.actuator_fit.gimbal_layout``
+# measures it: a gimbal's axes meet at a point, so its motors have to step aside ALONG
+# their own axes, and two STS3215 housings do not both fit that way until about a Dia148
+# head. So both axes are driven the way the knee, the hip and the tail already are --
+# actuator where there is room, four-bar to the joint.
+#
+# The topology is forced. The head is the last link in the chain, so a servo inside it can
+# only reach the ONE joint immediately above it (pitch). The other axis (pan) therefore has
+# to be driven from further up the chain, and the only cavity there is the chest.
+#
+#   chest servo --four-bar--> PAN axis (neck yaw)    remote  [PAN_SERVO, PAN_FOURBAR]
+#   head servo  --on the axis-> PITCH axis (nod)       direct
+#
+# Only ONE of the two has to be remote. A single housing DOES fit on its own axis, centred
+# in the head -- it is the second one that has nowhere to step aside to. So pitch is driven
+# directly (servo in the head, horn bolted to the neck column) and only pan is linked out.
+# That leaves the head's other housing slot for the cameras.
+#
+# The pan axis is pulled BACK from the head centre so the pan linkage has a horizontal
+# plane to run in under the head ball: at the head centre the ball leaves 2 mm, at 18 mm
+# behind it there is 15 mm. The head itself does not move -- only the yaw axis does, which
+# gives the head a slight sideways shift as it turns, the way a real neck does.
+HEAD_DRIVE = "remote_fourbar"
+HEAD_GIMBAL_STACK = 18.0           # pan axis -> pitch axis (= the head centre)
+HEAD_MOUNT_X = FORE_LEN - HEAD_GIMBAL_STACK
+LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a crank small
+                                   # enough to stay clear of the waist (2.07 rad available)
+
+# Pan: servo shaft (x, z) in the fore-torso frame, from actuator_fit.capacity('chest'),
+# dropped to the underside so its crank sweeps below the head ball (which reaches
+# down to z = -24 at the pan axis; the chest floor is at z = -39).
+PAN_SERVO = (31.0, -23.0)
+# The crank is deliberately SMALL. A longer one reaches the same range with a nicer
+# transmission angle, but its swept disc runs back past the waist plane -- at crank 27
+# it reaches x = -0.5, into the aft half. At 17 it stops at x = +9.5.
+PAN_FOURBAR = dict(crank=17.0, coupler=47.0, rocker=13.5, crank_window=(-22.0, 87.0))
+
+# Pitch: the servo sits ON the pitch axis at the head's centre, its horn bolted to the
+# neck column, so the head nods against the column. No linkage.
+PITCH_DRIVE = "direct"
+# The pitch servo has to be CENTRED in the head — a 42 mm-deep case hung off one side of
+# the pitch axis reaches outside the shell — so its horn lands ~21 mm off the head's centre
+# plane. The neck column therefore ends in a C-YOKE that straddles the head: the horn pad
+# on one arm, a plain pivot on the other, so the head is supported on both sides rather
+# than cantilevered off the servo spline.
+def pitch_yoke_face() -> float:
+    """|y| of the pitch servo's horn face — half its housing depth, since the servo has to
+    sit centred in the head."""
+    from cad.servo import DEFAULT as _S
+    return (_S.pocket[2] + 2 * HIP_BOSS_WALL) / 2.0
+
+
+def pitch_yoke_y() -> float:
+    """|y| of the neck yoke's arms.
+
+    The arms carry PADS of ``CLEVIS_TONGUE_T``, and it is the pad's INNER face that has to
+    clear the servo's boss — sizing to the pad's centre leaves half its thickness buried in
+    the case, which is an interference, not a bearing."""
+    return pitch_yoke_face() + 1.0 + CLEVIS_TONGUE_T
+
+
+PITCH_YOKE_Y = 24.0                # legacy alias; prefer pitch_yoke_y()
+PITCH_YOKE_ARM = 8.0               # yoke arm cross-section (mm)
+
+
+PAN_BEARING_Z = -35.0              # the neck's yaw bearing, in the chest under the ball
+NECK_COLUMN_W = 14.0               # column cross-section (mm)
+
+
+PAN_LINK_Z = 8.5                   # pan linkage plane, in the neck column's own frame
+                                   # (global z = PAN_BEARING_Z + this = -26.5: below the
+                                   # head ball, which stops at -16, and above the chest
+                                   # floor, which is at -34 under the servo)
+
+
+def pan_ground() -> float:
+    """O2->O4 for the pan four-bar: chest servo shaft to the neck yaw axis (mm)."""
+    return HEAD_MOUNT_X - PAN_SERVO[0]
+
+
+def pan_origin() -> tuple[float, float, float]:
+    """The yaw joint, in the fore-torso frame. It sits at the BEARING, down in the chest
+    under the head ball, not up at the head — the axis is the same vertical line either
+    way, and this is the end of it the torso can actually support."""
+    return (HEAD_MOUNT_X, 0.0, PAN_BEARING_Z)
+
+
+def pitch_origin_local() -> tuple[float, float, float]:
+    """The nod joint, in the neck column's own frame: forward and up from the yaw bearing
+    to the head's centre."""
+    return (HEAD_GIMBAL_STACK, 0.0, head_centre()[2] - PAN_BEARING_Z)
+
+
+# The head sits above the shoulder line rather than level with it. That is how a cat is
+# built, and here it is also what gives the pan linkage a plane to run in: the head ball
+# reaches down to z = -24 at the yaw axis, and the pan rocker needs to pass UNDER it.
+HEAD_RISE = 8.0
+
+
+def head_centre() -> tuple[float, float, float]:
+    """Head centre in the fore-torso frame — the one definition of where the head is."""
+    return (HEAD_MOUNT_X + HEAD_GIMBAL_STACK, 0.0, BODY_H / 2 - 2 + HEAD_RISE)
 EYE_R = 11.0 * SCALE
 EYE_SPACING = 40.0 * SCALE
 CAM_R = 6.0           # internal camera bore radius (not in the scaled-dims list)
+EAR_BASE_H = 6.0           # flat foot of the ear, seated on the head's mounting pad
+EAR_FOOT_W = 10.0          # foot width across the head (Y)
+EAR_PAD_PROUD = 1.0        # how far the pad stands off the sphere, so the foot lands flat
+
+
+def ear_station(side: int = 1) -> tuple[float, float, float]:
+    """Where an ear bolts to the head, in the head's own frame.
+
+    The ear used to be pinned at a point INSIDE the sphere, so its blade grew out through
+    the shell. A bolted-on ear has to start at the surface -- and not at the surface under
+    the middle of its foot, but above the HIGHEST point of the sphere anywhere under the
+    foot, or the curvature lifts the shell through the inboard corner.
+    """
+    import math
+    x = HEAD_R * 0.3
+    y = side * EYE_SPACING / 2
+    # the foot's corner nearest the head's axis is where the sphere rises highest
+    cx = max(abs(x) - EAR_BASE * 0.25, 0.0)
+    cy = max(abs(y) - EAR_FOOT_W / 2, 0.0)
+    z = math.sqrt(max(HEAD_R ** 2 - cx * cx - cy * cy, 1.0))
+    return (x, y, z + EAR_PAD_PROUD)
+
+
 EAR_H = 34.0 * SCALE
 EAR_BASE = 26.0 * SCALE
 TAIL_L = 120.0 * SCALE
@@ -179,8 +329,12 @@ COMPONENT_MASS = {
     "pi": 0.046, "battery_2s": 0.110, "bus_adapter": 0.008,
     "imu": 0.003, "camera": 0.004, "speaker": 0.010, "wiring_misc": 0.070,
 }
-# 14 motors: legs 2×4 (hip+knee) + waist + head pan/pitch/tilt (2-axis gimbal) + ears(1) + tail
-N_SERVOS = 8 + 1 + 3 + 1 + 1
+# 12 motors: legs 2x4 (hip+knee) + waist + head pan/pitch + tail. The ears are rigid
+# (EARS_ACTUATED) and the head has no roll axis (HEAD_ROLL_ACTUATED), so neither costs one.
+N_SERVOS = (8 + 1
+            + (3 if HEAD_ROLL_ACTUATED else 2)
+            + (1 if EARS_ACTUATED else 0)
+            + 1)
 
 # --------------------------------------------------------------- gait (trot: diagonal pairs)
 GAIT_PHASE = {"FL": 0.0, "RR": 0.0, "FR": 0.5, "RL": 0.5}
@@ -314,3 +468,129 @@ HEAD_SPLIT_Z = 8.0                 # head equatorial cut height (brow line; clea
 HEAD_PAD_H = 13.0                  # head bond-pad height, centred on the cut (>= 2*dowel depth)
 HEAD_PAD_XY = 15.0                 # head bond-pad footprint (bounded by the sphere, no bulge)
 HEAD_DOWEL_R = 39.0                # radius of the 3-dowel bond-pad circle in the head wall
+
+# =============================================================== joint clevis (double shear)
+# Every pin joint is a CLEVIS: one link ends in a two-cheek FORK, the mating link ends
+# in a TONGUE that sits in the slot between the cheeks, and the pin passes through all
+# three. This is what makes the leg assemblable (two hubs cannot occupy one space) and
+# it puts every pivot in DOUBLE SHEAR instead of cantilevering the pin.
+#
+# The thigh is the extreme case: its fork does not stop at the knee but runs the whole
+# way up to the crank pivot, so the thigh is a CHANNEL whose slot houses, in one plane,
+# the four-bar crank, the rocker welded to the shank, and the shank's own knee tongue.
+# The pushrod is offset sideways within that slot (it shares pins with both the crank
+# and the rocker, so it cannot be coplanar with them).
+#
+#   thigh cheek | pushrod | crank / rocker / shank-tongue | thigh cheek
+#   <-CHEEK_T-> <-ROD_T-> <---------TONGUE_T------------> <-CHEEK_T->
+#
+# Changing TONGUE_T re-fits every fork slot, every tongue and the thigh width at once.
+CLEVIS_TONGUE_T = 7.0     # in-plane link thickness (crank, rocker, shank tongue)
+CLEVIS_ROD_T = 6.0        # pushrod thickness — its own lane, outboard of the in-plane links
+CLEVIS_GAP = 0.35         # per-face running clearance inside a fork slot
+CLEVIS_CHEEK_T = 4.5      # each thigh/shank fork cheek — >= 4 perimeters at a 0.4 nozzle
+
+# LANE STACK across the thigh channel, inboard -> outboard (leg-local y, times leg side):
+#
+#   knee servo body | crank / rocker / shank tongue | pushrod | outboard cheek
+#     y <= -3.85    |        -3.5 .. +3.5           | 3.85..9.85 |  10.2 .. 14.7
+#
+# The knee servo drives the crank from inboard, so the crank has to be the lane next to
+# it; the pushrod shares the crank's C pin and the rocker's R pin, so it takes the next
+# lane out. (A pushrod forked around the crank is the textbook arrangement, but its
+# inboard blade would have to pass between the crank and the servo, which there is no
+# room for at this scale — so the rod is single-blade and both pins are shouldered.)
+FB_ROD_Y = CLEVIS_TONGUE_T / 2 + CLEVIS_GAP + CLEVIS_ROD_T / 2          # 6.85 mm
+
+
+def clevis_slot(rod: bool = False) -> tuple[float, float]:
+    """(lo, hi) y-bounds of the slot a fork must leave, in the leg's local frame.
+
+    ``rod=False`` — a plain pivot: just the symmetric tongue lane (knee, ankle).
+    ``rod=True``  — the thigh channel, which must additionally pass the pushrod in its
+    own outboard lane, so the slot is asymmetric.
+    """
+    hi = CLEVIS_TONGUE_T / 2 + CLEVIS_GAP
+    lo = -hi
+    if rod:
+        hi = FB_ROD_Y + CLEVIS_ROD_T / 2 + CLEVIS_GAP
+    return (lo, hi)
+
+
+def pan_rod_dz() -> float:
+    """Height of the pan pushrod's lane above the crank/rocker plane.
+
+    The crank and the rocker are in-plane links that share the C and R pins with the rod,
+    so the rod cannot be coplanar with them — the same lane discipline the leg and the tail
+    linkages use, turned on its side because this linkage lies flat."""
+    return CLEVIS_TONGUE_T / 2 + CLEVIS_GAP + CLEVIS_ROD_T / 2
+
+
+def thigh_profile() -> tuple[float, float]:
+    """(half-width, y-offset of the centre) of the thigh's outer section — sized so the
+    asymmetric channel keeps a full cheek on both sides."""
+    lo, hi = clevis_slot(rod=True)
+    return ((hi - lo) / 2.0 + CLEVIS_CHEEK_T, (lo + hi) / 2.0)
+
+
+# The knee-servo horn face lands on the inboard wall of the crank's lane.
+FB_HORN_Y = CLEVIS_TONGUE_T / 2 + CLEVIS_GAP                     # 3.85 mm
+HORN_SEAT_CLEAR = 0.6    # radial clearance around the Ø20 horn where it sits in a bore
+HORN_DISC_T = 2.5        # thickness of the metal STS3215 output disc
+
+# =============================================================== leg -> torso mount
+# The hip bracket is a bolted part, not a solid fused into the ribcage: it lands on a
+# flat pad on the torso flank at |y| = BODY_W/2 and is held by MOUNT_SCREWS screws into
+# heat-set inserts in that pad.
+MOUNT_SCREW = "M3"
+MOUNT_SCREWS = 2                  # screws per leg bracket
+MOUNT_PAD = (26.0, 14.0)          # torso mount pad footprint (X, Z), mm —
+                                  # kept short in Z so the bolted foot stays clear of
+                                  # the knee servo boss swinging past it
+MOUNT_PAD_T = 5.0                 # pad thickness (grows inboard from the flank plane)
+MOUNT_BOLT_PITCH = 16.0           # screw spacing along X on the pad
+MOUNT_FACE_GAP = 0.15             # bracket-to-pad seating gap (a print-fit, not a joint)
+
+# =============================================================== waist joint clearance
+# The two torso halves ROTATE against each other about the waist axis, so their innermost
+# ribs cannot both sit on the waist plane. Each half's waist-end station is pushed back
+# by this much, leaving 2*WAIST_CLEAR between the two rib faces.
+WAIST_CLEAR = 3.0
+
+# =============================================================== tail REMOTE drive
+# The tail pivot sits at the rear extremity of the frame, where the body has tapered to
+# almost nothing -- ``analysis.actuator_fit`` measures that no STS3215 can be housed
+# there (44.7% of its boss falls outside the ribcage). So the tail joint is driven the
+# way the hip already is: the actuator moves to where there IS room and reaches the joint
+# through a linkage. Here that is a crank-rocker four-bar, the same mechanism as the knee.
+#
+# ``TAIL_SERVO`` is the (x, z) of the servo's OUTPUT SHAFT in the aft-torso frame, chosen
+# from ``analysis.actuator_fit.capacity('aft')`` -- the one station where the housing fits.
+TAIL_DRIVE = "remote_crank"        # 'direct' (servo on the joint) | 'remote_crank'
+TAIL_SERVO = (-54.0, 0.0)
+# Link lengths from a search over analysis.fourbar with this ground distance, keeping the
+# transmission angle inside the same 40-140 deg band the knee uses. Gives 2.14 rad of
+# rocker travel against the +-1.0 rad the tail joint actually needs.
+TAIL_FOURBAR = dict(crank=21.5, coupler=45.0, rocker=18.0, crank_window=(-28.5, 84.0))
+LIM_TAIL = (-1.0, 1.0)             # rad, matches cad/assembly.py's tail link
+
+
+def tail_ground() -> float:
+    """O2->O4 distance for the tail four-bar: servo shaft to tail pivot (mm)."""
+    import math
+    sx, sz = TAIL_SERVO
+    return math.hypot(-AFT_LEN - sx, BODY_H / 4 - sz)
+
+
+def tail_lane_y() -> tuple[float, float, float]:
+    """(horn face, crank/rocker lane centre, pushrod lane centre) for the tail drive.
+
+    Same clevis discipline as the leg: the tail forks around a tongue on the torso, the
+    rocker is welded straight onto the tail's OUTER cheek so no web is needed, and the
+    pushrod runs in its own lane beside the in-plane links.
+    """
+    lo, _ = clevis_slot()
+    horn = -lo + CLEVIS_CHEEK_T                      # outer face of the tail's outer cheek
+    link = horn + CLEVIS_TONGUE_T / 2
+    rod = link + CLEVIS_TONGUE_T / 2 + CLEVIS_GAP + CLEVIS_ROD_T / 2
+    return (horn, link, rod)

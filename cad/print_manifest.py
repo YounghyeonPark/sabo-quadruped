@@ -38,27 +38,28 @@ PRINT_META: dict[str, dict] = {
     "torso_fore": dict(
         orient="body axis (X) vertical, waist face on bed; Jetson-bay side out",
         support=True, split="recommended: sagittal L/R — hoops arch off the cut face",
-        material="PETG", perimeters=3, infill=0.18, inserts=4,
-        notes="waist horn pad (4x M2) + 4 leg-node abduction mounts + bus channels"),
+        material="PETG", perimeters=3, infill=0.18, inserts=16,
+        notes="waist horn pad (4x M2), 2 leg-mount pads (2x M3 each), yaw servo boss + bearing, bus channels"),
     "torso_aft": dict(
         orient="body axis (X) vertical, waist face on bed; belly/battery bay out",
         support=True, split="recommended: sagittal L/R — hoops arch off the cut face",
-        material="PETG", perimeters=3, infill=0.18, inserts=0,
-        notes="waist servo pocket (M2 case screws) + 4 leg-node mounts + bus channels"),
+        material="PETG", perimeters=3, infill=0.18, inserts=4,
+        notes="waist servo pocket (M2 case screws), 2 leg-mount pads (2x M3 each), tail servo boss + four-bar bay, bus channels"),
     # ---- head / appendages ---------------------------------------------------
     "head": dict(
         orient="neck stub down; OR split at the equator into two bowls",
         support=True, split="recommended: horizontal equator split (2 bowls, bond)",
-        material="PLA", perimeters=3, infill=0.10, inserts=4,
-        notes="hollow skull; muzzle bump + eye/cam bores need support if not split"),
+        material="PLA", perimeters=3, infill=0.10, inserts=8,
+        notes="hollow skull; 4x M2 neck-stub + 2x2 M2 ear pads; pitch servo boss inside; muzzle bump + eye/cam bores need support if not split"),
     "ear": dict(
         orient="lay the blade flat on the bed (largest face down)",
-        support=False, split="no", material="PLA", perimeters=3, infill=0.20, inserts=2,
-        notes="thin 3 mm blade prints flat with no support; 2x M2 horn inserts in base"),
+        support=False, split="no", material="PLA", perimeters=3, infill=0.20, inserts=0,
+        notes="thin 3 mm blade prints flat with no support; bolted rigid, so its 2x M2 go through into the head's pads (no inserts in the ear itself)"),
     "tail": dict(
-        orient="lay the tail axis along the bed, curl upward",
-        support=False, split="no", material="PLA", perimeters=3, infill=0.20, inserts=4,
-        notes="gentle up-curl self-supports; 4x M2 horn inserts + centre relief in base"),
+        orient="lay the tail axis along the bed, curl upward; fork mouth sideways",
+        support=False, split="no", material="PLA", perimeters=3, infill=0.20, inserts=0,
+        notes="gentle up-curl self-supports; clevis fork on a Ø3 pin (no horn now the "
+              "drive is remote) + the rocker welded into the base"),
     # ---- leg: hip brackets (abduction mount, rigid, load-bearing) ------------
     "hipbr_F_L": dict(orient="servo-pocket mouth up (avoid pocket support)",
                       support=True, split="no", material="PETG", perimeters=4,
@@ -104,6 +105,31 @@ PRINT_META: dict[str, dict] = {
     "pushrod_R": dict(orient="flat on bed (link plane down) — no support",
                       support=False, split="no", material="PETG", perimeters=4, infill=0.60,
                       inserts=0, notes="rigid coupler; Ø3 rotating pins + bearing counterbores"),
+    # ---- tail: remote four-bar (params.TAIL_DRIVE) ---------------------------
+    # The tail pivot has no room for a servo (analysis/actuator_fit.py), so the actuator
+    # sits forward in the aft torso and reaches it through these two links.
+    "tail_crank": dict(orient="flat on bed (link plane down) — no support",
+                       support=False, split="no", material="PETG", perimeters=4,
+                       infill=0.60, inserts=4,
+                       notes="on the tail servo's horn; 4x M2 horn inserts + centre screw"),
+    "tail_pushrod": dict(orient="flat on bed (link plane down) — no support",
+                         support=False, split="no", material="PETG", perimeters=4,
+                         infill=0.60, inserts=0,
+                         notes="rigid coupler to the rocker on the tail base"),
+    # ---- head gimbal: yaw is remote, pitch is direct (params.HEAD_DRIVE) ------
+    "neck_column": dict(orient="yaw axle down on the bed, C-yoke up",
+                        support=True, split="no", material="PETG", perimeters=4,
+                        infill=0.35, inserts=4,
+                        notes="carries the yaw axle, the yaw rocker and the pitch horn "
+                              "pad (4x M2); the yoke overhang wants light support"),
+    "pan_crank": dict(orient="flat on bed (link plane down) — no support",
+                      support=False, split="no", material="PETG", perimeters=4,
+                      infill=0.60, inserts=4,
+                      notes="on the chest yaw servo's horn; 4x M2 horn inserts"),
+    "pan_pushrod": dict(orient="flat on bed (link plane down) — no support",
+                        support=False, split="no", material="PETG", perimeters=4,
+                        infill=0.60, inserts=0,
+                        notes="rigid coupler from the yaw crank to the neck column"),
 }
 
 
@@ -145,11 +171,30 @@ SPLIT_META: dict[str, dict] = {
 }
 
 
+def _check_inserts_against_geometry(meta: dict) -> None:
+    """The insert counts in PRINT_META are hand-written for the build table; the same
+    numbers exist in the geometry. Two statements of one fact drift — these had, by
+    sixteen inserts — so the manifest verifies itself rather than being believed."""
+    try:
+        from analysis.hardware_bom import per_part_inserts
+        actual = per_part_inserts()
+    except Exception:
+        return                       # build123d unavailable: nothing to check against
+    wrong = {k: (meta[k]["inserts"], actual[k])
+             for k in meta if k in actual and meta[k]["inserts"] != actual[k]}
+    if wrong:
+        raise ValueError(
+            "PRINT_META insert counts disagree with the CAD: "
+            + ", ".join("%s says %d, geometry has %d" % (k, a, b)
+                        for k, (a, b) in sorted(wrong.items())))
+
+
 def build_manifest() -> dict:
     missing = set(PRINTABLE) - set(PRINT_META)
     extra = set(PRINT_META) - set(PRINTABLE)
     if missing or extra:
         raise KeyError(f"PRINT_META out of sync with PRINTABLE: missing={missing} extra={extra}")
+    _check_inserts_against_geometry(PRINT_META)
     # SPLIT_META must exactly cover the sub-parts emitted by cad.parts.split
     from cad.parts.split import SPLIT_SOURCE
     s_missing = set(SPLIT_SOURCE) - set(SPLIT_META)

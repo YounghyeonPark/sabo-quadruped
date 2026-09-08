@@ -205,7 +205,7 @@ class HardwareBody(Body):
         self.rear_height = 1.0
         self.head_pan = 0.0
         self.head_pitch = 0.0
-        self.head_tilt = 0.0
+        self.eis_roll = 0.0        # roll handed to electronic stabilisation
         self.ears = EarPose.NEUTRAL
         self.tail = TailPose.MID
         self.tail_wag = 0.0
@@ -286,20 +286,23 @@ class HardwareBody(Body):
 
     # -- head / eyes -------------------------------------------------
     def look_at(self, bearing: float, tilt: float = 0.0) -> None:
-        # bearing -> pan (yaw); tilt -> pitch (nod). Roll (head_tilt) is reserved
-        # for the cute head-tilt + the IMU camera-roll gimbal (see gimbal()).
+        # bearing -> pan (yaw); tilt -> pitch (nod). There is no roll joint
+        # (cad.params.HEAD_ROLL_ACTUATED) -- roll is corrected electronically.
         self.head_pan = bearing
         self.head_pitch = tilt
         self._write_servo("head_pan", bearing)
         self._write_servo("head_pitch", tilt)
 
     def gimbal(self, roll: float, pitch: float) -> None:
-        """2-axis camera stabilization: counter the body's roll/pitch (from the
-        BNO085 IMU) on the head so the camera stays level while moving. Called by
-        the on-robot stabilization loop (mirrors sim's head_stabilize)."""
-        self.head_tilt = roll
+        """Camera stabilization from the BNO085. PITCH is mechanical; ROLL is not.
+
+        The head has room for two servos, not three, so the roll axis was traded for
+        electronic stabilisation -- a roll is a rotation in the image plane, which a
+        warp removes exactly. ``roll`` is therefore kept as the EIS input rather than
+        written to a servo; ``vision.pipeline`` consumes ``self.eis_roll``.
+        Mirrors sim's ``head_stabilize``."""
+        self.eis_roll = roll
         self.head_pitch = pitch
-        self._write_servo("head_tilt", roll)
         self._write_servo("head_pitch", pitch)
 
     def blink(self, kind: BlinkKind) -> None:
@@ -323,9 +326,16 @@ class HardwareBody(Body):
                    TailPose.PUFFED: 0.9}
 
     def set_ears(self, pose: EarPose) -> None:
+        """Record the intent; on this hardware revision the ears do not move.
+
+        They are bolted to the head (``cad.params.EARS_ACTUATED``) because there was no
+        room forward of the waist for a fourth expression actuator. The verb stays in the
+        HAL so the behaviour layer is unchanged and a later build can drive them: only
+        this method has to write to a servo again.
+        """
         self.ears = pose
-        # EARS_LINKED: one motor; ear_R follows ear_L mechanically.
-        self._write_servo("ear_L", self._EAR_ANGLE[pose])
+        if "ear_L" in scm.SERVOS:
+            self._write_servo("ear_L", self._EAR_ANGLE[pose])
 
     def set_tail(self, pose: TailPose, wag: float = 0.0) -> None:
         self.tail = pose

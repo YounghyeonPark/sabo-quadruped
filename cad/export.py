@@ -6,7 +6,7 @@ Export — turn the parametric model into printable files + a mass manifest.
 
 Writes to ``cad/out/``:
     <part>.stl / <part>.step   per-part printable geometry (slice these)
-    robokitten_full.stl        the whole posed robot (preview)
+    sabo_full.stl              the whole posed robot (preview)
     parts_manifest.json        per-part volume, printed mass, count, bbox
     preview_iso.png / preview_side.png   headless renders (matplotlib)
 
@@ -39,6 +39,8 @@ COUNTS = {
     "upper_F": 2, "lower_F": 2, "foot_F": 2,
     "upper_R": 2, "lower_R": 2, "foot_R": 2,
     "crank_F": 2, "crank_R": 2, "pushrod_F": 2, "pushrod_R": 2,
+    "tail_crank": 1, "tail_pushrod": 1,
+    "neck_column": 1, "pan_crank": 1, "pan_pushrod": 1,
 }
 
 
@@ -127,7 +129,7 @@ def main() -> None:
 
     # whole robot preview
     robot = full_robot()
-    full_stl = os.path.join(OUT, "robokitten_full.stl")
+    full_stl = os.path.join(OUT, "sabo_full.stl")
     export_stl(robot, full_stl)
 
     comp_g = P.component_mass_total() * 1000.0

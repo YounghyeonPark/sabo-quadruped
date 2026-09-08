@@ -18,8 +18,10 @@ skin loft.
 
 from __future__ import annotations
 
+import math
+
 from build123d import (Box, BuildPart, BuildSketch, Cylinder, Ellipse, Locations,
-                       Mode, Part, Plane, Pos, Rectangle, Rot, extrude, loft)
+                       Mode, Part, Plane, Pos, Rectangle, Rot, Sphere, extrude, loft)
 
 from cad import params as P
 from cad.parts import fasteners as F
@@ -96,6 +98,18 @@ def _cyl_y(radius: float, height: float) -> Part:
     return Rot(90, 0, 0) * Cylinder(radius=radius, height=height)
 
 
+def _ab_at(stations, x: float) -> tuple[float, float]:
+    """The ribcage's (half-width, half-height) at station ``x`` — used to size a brace so
+    it reaches the shell exactly, without poking through it."""
+    o = sorted(stations)
+    x = max(o[0][0], min(o[-1][0], x))
+    for (x0, a0, b0), (x1, a1, b1) in zip(o, o[1:]):
+        if x0 <= x <= x1:
+            t = 0.0 if x1 == x0 else (x - x0) / (x1 - x0)
+            return (a0 + (a1 - a0) * t, b0 + (b1 - b0) * t)
+    return (o[-1][1], o[-1][2])
+
+
 def _core_hip_drive(mx: float, s: int) -> Part:
     """HIP servo relocated INTO the torso core + the lateral drive-axle bearing at the
     core wall (remote-axle hip drive, params.HIP_DRIVE).
@@ -128,13 +142,121 @@ def _core_hip_drive(mx: float, s: int) -> Part:
     return part
 
 
+# How far either side of its stance angle the hip actually works. The joint LIMIT is
+# +-2.6 rad, but nothing drives it there: the gaits and the cat-motion poses stay inside
+# this, and clearing the full limit would mean carving a Ø94 disc out of the ribcage at
+# every hip -- which is exactly what an earlier version of this function did, and it cut
+# the ribcage into loose pieces.
+HIP_WORK_RANGE = 0.65      # rad either side of stance
+HIP_SWEEP_STEPS = 9
+
+
+def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:
+    """Swept clearance for the thigh's knee-servo boss as the hip rotates.
+
+    The knee servo's shaft has to lie on the hip-parallel crank axis, and an STS3215 is
+    36 mm deep along its shaft, so its housing unavoidably reaches inboard past the torso
+    flank. The torso therefore carries the scallop the boss sweeps -- the same thing a real
+    quadruped does at the shoulder.
+
+    It is the boss's REAL swept volume, sampled over the hip's working range. A disc sized
+    to the boss's furthest corner is far bigger, and severs the ribs and stringers it
+    crosses; the boss only ever occupies a curved sliver of it.
+    """
+    from cad.parts.leg import _rounded_box
+    from sim.gait import stance_angles
+
+    l, w, _ = SERVO.pocket
+    h = SERVO.pocket[2]
+    wall = P.HIP_BOSS_WALL
+    dx, dy, dz = l + 2 * wall, h + 2 * wall, w + 2 * wall
+    # the boss, in the thigh's frame: shaft on the crank axis, body inboard of it
+    cx = SERVO.shaft_offset
+    cz = -(P.leg_geom(leg)["upper"] - P.FOURBAR["ground"])
+    cy = -s * (P.FB_HORN_Y + dy / 2.0)
+    boss = Pos(cx, cy, cz) * _rounded_box(dx + 2.0, dy + 2.0, dz + 2.0, 5.0)
+
+    hip0, _ = stance_angles(leg)
+    void = None
+    for i in range(HIP_SWEEP_STEPS):
+        t = -1.0 + 2.0 * i / (HIP_SWEEP_STEPS - 1)
+        ang = hip0 + t * HIP_WORK_RANGE
+        posed = Rot(0, -math.degrees(ang), 0) * boss
+        void = posed if void is None else void + posed
+    # The thigh hangs off the MOUNT, at |y| = BODY_W/2, and the hip is hip_off further out
+    # again — the scallop has to be cut where the boss actually is, not hip_off from the
+    # centreline.
+    _, my = P.MOUNTS[leg]
+    return Pos(mx, my + s * P.leg_geom(leg)["hip_off"], 0) * void
+
+
+def _head_socket() -> Part:
+    """Cavity in the chest for the head, which pans and nods on the neck gimbal.
+
+    Cut as a ball around the head's centre, NOT as the head's true swept volume.
+
+    That is a deliberate approximation and it has a cost worth writing down. The yaw axis
+    sits 18 mm behind the head's centre — it had to, so the pan linkage would have a plane
+    to run in under the ball — so as the head turns its centre orbits, and its real sweep
+    is a blob of radius ~68 about the yaw axis, not a Ø104 ball. Cutting that swept blob is
+    correct and it hollows out essentially the whole front of the chest: measured, it
+    leaves the ribcage in 41 loose pieces. A Ø100 head this close to a yaw axis cannot turn
+    ±57° without sweeping the chest.
+
+    Resolving it means giving ground somewhere — a smaller pan range, a smaller head, or a
+    yaw axis back at the head's centre with the linkage re-routed. Until then this cuts the
+    ball, which is right for the head's rear (the part that shares space with the chest)
+    and wrong for its swing."""
+    hx, _, hz = P.head_centre()
+    r = P.HEAD_R + 2.0
+    return Pos(hx, 0, hz) * (Sphere(r)
+                             + Pos(0, 0, -P.NECK_L) * Cylinder(16.0, 2 * P.NECK_L))
+
+
+def _leg_mount_relief(mx: float, s: int) -> Part:
+    """Clearance outboard of the seating plane over the bracket's footprint.
+
+    The rib hoops bulge a little past |y| = BODY_W/2, so without this the bolted-on leg
+    bracket would still be inside the ribcage. Cutting it here means the mount really is
+    a flat face that another part lands on."""
+    pad_x, pad_z = P.MOUNT_PAD
+    yf = s * (P.BODY_W / 2.0)
+    return Pos(mx, yf + s * 20.0, 0) * Box(pad_x + 8.0, 40.0, pad_z + 8.0)
+
+
+def _leg_mount_pad(mx: float, s: int) -> Part:
+    """Flat, bolted landing for one leg's hip bracket on the torso flank.
+
+    Without this the leg had NO defined attachment to the body — the bracket was simply
+    drawn overlapping the ribcage. The pad grows INBOARD from the flank plane
+    (|y| = BODY_W/2) so it never pushes the leg outboard, and carries the heat-set
+    inserts the bracket's screws pull into."""
+    pad_x, pad_z = P.MOUNT_PAD
+    t = P.MOUNT_PAD_T
+    yf = s * (P.BODY_W / 2.0)                       # the flank / seating plane
+    pad = Pos(mx, yf - s * t / 2.0, 0) * Box(pad_x, t, pad_z)
+    ins = P.HEATSET[P.MOUNT_SCREW]
+    for i in range(P.MOUNT_SCREWS):
+        sx = mx + (i - (P.MOUNT_SCREWS - 1) / 2.0) * P.MOUNT_BOLT_PITCH
+        pad -= Pos(sx, yf - s * (ins["depth"] / 2.0), 0) *             F.heatset_hole(P.MOUNT_SCREW, "y", ins["depth"])
+    return pad
+
+
 def _half(stations, legs) -> Part:
     ribs = _interp(stations, extra=1)
     frame = _rib(*ribs[0])
     for r in ribs[1:]:
         frame += _rib(*r)
-    # four stringers: spine (top), keel (bottom), two flanks
-    for oy, oz in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+    # Eight stringers: spine (top), keel (bottom), two flanks, and four diagonals.
+    #
+    # The four cardinal ones are not enough once the cage has clearance cut into it. The
+    # head socket takes the SPINE out over the chest and the hip scallops take the FLANK
+    # out beside the shoulders, which between them leave a rib's upper arc attached to
+    # nothing. The diagonals run where neither cut reaches (|y| just inside the scallop,
+    # z well outside the socket) and tie those arcs back in.
+    d = 0.70
+    for oy, oz in ((0, 1), (0, -1), (1, 0), (-1, 0),
+                   (d, d), (d, -d), (-d, d), (-d, -d)):
         frame += _stringer(stations, oy, oz)
     # core-mounted hip servos + drive-axle wall bearings (remote-axle hip drive): the
     # ~45 mm servo body no longer floors at the hip joint line out in the shoulder; it
@@ -143,7 +265,134 @@ def _half(stations, legs) -> Part:
         mx, my = P.MOUNTS[leg]
         s = P.leg_plane_sign(leg)
         frame += _core_hip_drive(mx, s)
+        frame -= _leg_mount_relief(mx, s)
+        frame += _leg_mount_pad(mx, s)
     return frame
+
+
+def _hip_scallops(frame: Part, legs) -> Part:
+    """Cut the knee-servo clearance out of a FINISHED half.
+
+    It has to be the last thing done to the half. Everything that gets added afterwards —
+    the mount pads on the flank, the yaw servo's boss (which the STS3215's off-centre shaft
+    pushes 10 mm sideways, straight into the right thigh's path) — sits inside the band the
+    boss sweeps, so a scallop cut any earlier is simply filled back in."""
+    for leg in legs:
+        mx, _my = P.MOUNTS[leg]
+        frame -= _hip_sweep_relief(mx, P.leg_plane_sign(leg), leg)
+    return frame
+
+
+def _tail_drive(frame: Part) -> Part:
+    """Tail actuator + joint, in the AFT half (params.TAIL_DRIVE = 'remote_crank').
+
+    The tail pivot is at the rear extremity of the frame, where nothing can be housed, so
+    the servo lives forward at ``P.TAIL_SERVO`` — the one aft station where
+    ``analysis.actuator_fit`` finds room — and drives the joint through a four-bar. This
+    adds three things: the servo housing, the TONGUE the tail's fork pivots on, and the
+    corridor the pushrod needs through the ribcage.
+    """
+    from cad.parts.leg import PIN_R, _cyl_y, _pin_bore, _servo_pack
+    from cad.parts.tail import tail_linkage
+
+    horn_y, link_y, rod_y = P.tail_lane_y()
+    sx, sz = P.TAIL_SERVO
+    tx, tz = -P.AFT_LEN, P.BODY_H / 4
+
+    # 1. the actuator: shaft on the tail axis (Y) at the crank pivot, case reaching forward
+    boss, cut = _servo_pack(sx, sz, horn_y, +1, long_axis="x", shaft_end=+1)
+    frame = frame + boss
+
+    # 2. the pushrod corridor. The rod swings between the crank tip and the rocker tip, so
+    #    it crosses the ribcage; the lattice gets a slot for it rather than the rod being
+    #    drawn through solid ribs.
+    _, pts = tail_linkage()
+    cx, cz = pts["C"]
+    rx, rz = pts["R"]
+    x0, x1 = min(cx, rx) - P.TAIL_FOURBAR["crank"], max(cx, rx) + 8.0
+    z0, z1 = min(cz, rz) - P.TAIL_FOURBAR["crank"], max(cz, rz) + 8.0
+    slot_w = P.CLEVIS_ROD_T + 2 * P.CLEVIS_GAP + 1.0
+    frame -= Pos((x0 + x1) / 2, rod_y, (z0 + z1) / 2) * Box(x1 - x0, slot_w, z1 - z0)
+    #    ...and for the crank, which sweeps a full disc about the servo shaft
+    crank_w = P.CLEVIS_TONGUE_T + 2 * P.CLEVIS_GAP
+    frame -= Pos(sx, link_y, sz) * _cyl_y(
+        P.TAIL_FOURBAR["crank"] + PIN_R + 3.0 + P.CLEVIS_GAP, crank_w)
+
+    # 3. swing clearance. The tail's fork cheeks and its rocker rotate about the pivot, and
+    #    at the pivot the ribcage is still there — so the lanes either side of the tongue
+    #    are cleared over the radius those parts sweep. The tongue's own lane is untouched.
+    sweep_r = P.TAIL_FOURBAR["rocker"] + PIN_R + 3.0 + 2.0
+    lo, hi = P.clevis_slot()
+    _, link_y, _ = P.tail_lane_y()
+    cheek = P.CLEVIS_CHEEK_T + P.CLEVIS_GAP
+    for y0, y1 in ((lo - cheek, lo), (hi, link_y + P.CLEVIS_TONGUE_T / 2 + P.CLEVIS_GAP)):
+        frame -= Pos(tx, (y0 + y1) / 2, tz) * _cyl_y(sweep_r, y1 - y0)
+
+    # 4. the joint itself: a TONGUE at the tail pivot for the tail's fork to straddle,
+    #    carried on a short stem off the last rib.
+    pivot_r = 8.0
+    frame += Pos(tx + 6.0, 0, tz) * Box(14.0, P.CLEVIS_TONGUE_T, 2 * pivot_r)
+    frame += Pos(tx, 0, tz) * _cyl_y(pivot_r, P.CLEVIS_TONGUE_T)
+    frame -= Pos(tx, 0, tz) * _pin_bore(length=40)
+
+    return frame - cut
+
+
+def _pan_drive(frame: Part) -> Part:
+    """The head's YAW actuator and bearing, in the fore torso (params.HEAD_DRIVE).
+
+    The gimbal's motors cannot both sit on their own axes inside the head
+    (``analysis.actuator_fit.gimbal_layout``), and the head is the last link in the chain,
+    so the one that has to move out goes here — the only cavity upstream of the yaw joint.
+    It reaches the axis through a four-bar in a horizontal plane that passes UNDER the head
+    ball, which is why the yaw axis is pulled back from the head centre and the head sits
+    8 mm proud of the shoulder line.
+    """
+    from cad.parts.leg import PIN_R, _servo_pack
+    from cad.parts.neck import neck_sweep, pan_sweep
+
+    sx, sz = P.PAN_SERVO
+    ox = P.HEAD_MOUNT_X
+    link_z = P.PAN_BEARING_Z + P.PAN_LINK_Z
+
+    # 1. the actuator: shaft on the VERTICAL yaw-parallel axis, case reaching upward
+    boss, cut = _servo_pack(0.0, 0.0, 0.0, -1, long_axis="z")
+    place = Pos(sx, 0, sz) * Rot(90, 0, 0)
+    frame = frame + place * boss
+    # ...and tie it into the cage. The ribcage is a hollow lattice, so a boss sitting in
+    # the middle of it touches nothing and prints as a loose second piece; these braces
+    # reach from the boss out to the flanks and down to the keel at the same station.
+    a, b = _ab_at(FORE_STATIONS, sx)
+    brace = 6.0
+    for sgn in (+1, -1):
+        frame += Pos(sx, sgn * a / 2, sz + 10.0) * Box(brace, a, brace)
+    frame += Pos(sx, 0, (sz - b) / 2) * Box(brace, brace, b + sz)
+
+    # 2. the yaw bearing: the neck column's Dia6 axle runs in a 686 seated here
+    hb = P.HIP_BEARING
+    wall = P.HIP_BOSS_WALL
+    frame += Pos(ox, 0, P.PAN_BEARING_Z) * Cylinder(hb["od_r"] + wall, hb["width"] + 8)
+    # ...on a cross-brace out to the flanks. The keel stringer is cut away just here by the
+    # front hips' sweep relief, so a bearing boss resting on it alone comes off as a loose
+    # piece; this ties it sideways into the ribs instead.
+    # The keel stringer carries it. That is only true now the hip scallops are cut where
+    # the knee-servo boss actually is (|y| >= 33) instead of across the centreline — an
+    # earlier version put them 47 mm too far inboard, took the keel out from under this
+    # boss, and needed diagonal braces that then ran straight through the thigh's path.
+    frame -= Pos(ox, 0, P.PAN_BEARING_Z) * Cylinder(hb["od_r"], hb["width"])
+    frame -= Pos(ox, 0, P.PAN_BEARING_Z) * Cylinder(hb["bore_r"] + P.AXLE_CLEAR, 60.0)
+
+    # 3. the cavity the linkage moves through — its REAL swept volume, not a bounding box.
+    #    A box round the crank's disc plus a corridor to the neck cut the ribcage into
+    #    fourteen loose pieces; the links only ever occupy a thin curved region inside it.
+    frame -= pan_sweep()
+
+    # 4. clearance for the column itself as it swings about the yaw axis — again its REAL
+    #    swept volume. A disc sized to the column's forward lean is much bigger, and cuts
+    #    straight through the braces that hold the yaw bearing.
+    frame -= neck_sweep()
+
+    return frame - place * cut
 
 
 # --------------------------------------------------------------- waist interface
@@ -165,38 +414,94 @@ def _waist_bulkhead(x_center: float) -> Part:
     return Pos(x_center, 0, -4 * wz) * plate
 
 
+# The waist servo's shaft must lie ON the waist axis (Y through the origin), which means
+# its 45x24 case straddles the waist plane — a 45 mm case with the shaft 12 mm from one
+# end cannot sit wholly on one side of its own axis. So the servo is bolted into the AFT
+# half and the FORE half is relieved around it. Its output face is one end of the case,
+# 18 mm off the centreline, so the drive is one-sided: the horn pad sits there and a plain
+# idler pin on the opposite side carries the other half of the joint.
+_WAIST_DRIVE_S = +1        # which side of the centreline the servo's output face is on
+_WAIST_IDLER_R = 4.0       # idler pivot pin radius (Ø8 stub, opposite the horn)
+
+
+def _waist_shaft_y() -> float:
+    """|y| of the waist servo's output face — where the horn, and so the fore half's
+    coupling pad, has to be."""
+    return SERVO.pocket[2] / 2.0
+
+
 def _waist_aft_features(frame: Part) -> Part:
-    """AFT half: waist servo pocket (shaft along the waist axis Y) + case screws +
-    shaft relief + the daisy-chain crossing hole."""
+    """AFT half: the waist servo, shaft ON the waist axis, plus the idler pin boss on the
+    far side and the daisy-chain crossing hole."""
     l, w, h = SERVO.pocket
+    fl, ft = SERVO.flange_cut
+    sy = _WAIST_DRIVE_S
     cx = -(_WAIST_BH_T / 2 + 2)
     frame += _waist_bulkhead(cx)
-    node = Pos(cx, 0, 0)
-    frame -= node * (Rot(90, 0, 0) * Box(l, w, h))       # pocket, horn/shaft axis -> Y
-    frame -= node * F.servo_case_screws("y", (l, w), length=h + 14)
-    frame -= node * F.wire_hole("bus", "y", h + 20)      # shaft/output relief along Y
-    frame -= Pos(0, 12, 8) * F.wire_hole("bus", "x", 60)  # daisy-chain crosses the waist
+    # servo boss straddling the waist plane, its shaft on the axis (x=0, z=0)
+    frame += Pos(0, 0, -(l / 2 - SERVO.shaft_from_end)) * Box(w + 6, h + 6, l + 6)
+    frame -= Pos(0, 0, -(l / 2 - SERVO.shaft_from_end)) * Box(w, h, l)      # case pocket
+    frame -= Pos(0, sy * (h / 2 - ft / 2), 0) * Box(w, ft, fl)              # flange relief
+    frame -= Pos(0, 0, -(l / 2 - SERVO.shaft_from_end)) *         F.servo_case_screws("y", (w, l), length=h + 14)
+    # Horn window: the Ø20 disc is fitted from outside and the FORE half's coupling pad
+    # bolts onto it, so the boss wall at the output face has to open to the pad's
+    # diameter — a Ø6 shaft hole leaves the pad inside this boss's solid.
+    pad_r = P.HORN_BOLT_CIRCLE / 2 + P.HEATSET[P.HORN_SCREW]["boss_r"]
+    frame -= Pos(0, sy * (h / 2 + 12.0), 0) * (Rot(90, 0, 0) * Cylinder(pad_r + 1.0, 26.0))
+    frame -= F.wire_hole("bus", "y", h + 20)                                # shaft relief on the axis
+    # idler pivot on the opposite side of the centreline, on the same axis
+    frame += Pos(0, -sy * (_waist_shaft_y() - 4.0), 0) * (Rot(90, 0, 0) * Cylinder(_WAIST_IDLER_R + 3.5, 8.0))
+    frame -= Pos(0, -sy * _waist_shaft_y(), 0) * (Rot(90, 0, 0) * Cylinder(_WAIST_IDLER_R + P.PIN_CLEARANCE, 40.0))
+    frame -= Pos(0, 12, 8) * F.wire_hole("bus", "x", 60)                    # daisy-chain crosses the waist
     return frame
 
 
 def _waist_fore_features(frame: Part) -> Part:
-    """FORE half: horn coupling pad driven by the waist servo's Ø20 horn on the waist
-    axis (Y), + the matching daisy-chain crossing hole."""
+    """FORE half: the horn coupling pad out at the servo's output face, the matching idler
+    stub on the far side, and a relief cavity around the servo body — which necessarily
+    reaches across the waist plane."""
+    l, w, h = SERVO.pocket
+    sy = _WAIST_DRIVE_S
     pad_r = P.HORN_BOLT_CIRCLE / 2 + P.HEATSET[P.HORN_SCREW]["boss_r"]
     cx = _WAIST_BH_T / 2 + 2
     frame += _waist_bulkhead(cx)
-    frame += Pos(cx, 0, 0) * (Rot(90, 0, 0) * Cylinder(pad_r, _WAIST_BH_T))
-    frame -= Pos(cx, 0, 0) * F.horn_holes(axis="y", length=_WAIST_BH_T + 4)
-    frame -= Pos(0, 12, 8) * F.wire_hole("bus", "x", 60)  # daisy-chain crosses the waist
+    # clear the aft half's servo boss + its swing through the waist range
+    frame -= Pos(0, 0, -(l / 2 - SERVO.shaft_from_end)) * Box(w + 12, h + 12, l + 12)
+    # Horn coupling pad, on the waist axis at the servo's output face. It is made long
+    # enough to reach OUTBOARD past the servo relief cut above, because that cut takes the
+    # middle of this half's bulkhead with it -- a pad that stops at the cut line is a loose
+    # disc floating in the waist.
+    pad_t = _WAIST_BH_T + 8.0
+    ppos = Pos(0, sy * (_waist_shaft_y() + pad_t / 2), 0)
+    frame += ppos * (Rot(90, 0, 0) * Cylinder(pad_r, pad_t))
+    frame -= ppos * F.horn_holes(axis="y", length=pad_t + 4)
+    # idler stub, likewise carried out to material the relief did not take
+    stub_t = 20.0
+    frame += Pos(0, -sy * (_waist_shaft_y() + stub_t / 2 - 6.0), 0) *         (Rot(90, 0, 0) * Cylinder(_WAIST_IDLER_R, stub_t))
+    frame -= Pos(0, 12, 8) * F.wire_hole("bus", "x", 60)
     return frame
 
 
+def _waist_gap(frame: Part) -> Part:
+    """Hold the half off the waist plane. The two halves ROTATE against each other, so
+    their innermost ribs cannot both sit on x = 0 — as drawn they shared 3.5 cm³ of
+    solid."""
+    return frame - Box(2 * P.WAIST_CLEAR, 400.0, 400.0)
+
+
 def torso_fore() -> Part:
-    return _waist_fore_features(_half(FORE_STATIONS, ["FL", "FR"]))
+    # The head socket is cut LAST. Everything the gimbal adds — the yaw servo boss, the
+    # bearing and its braces — goes in first and is then trimmed back out of the head's
+    # space; cutting the socket first just let those additions grow back into it.
+    frame = _waist_fore_features(_pan_drive(
+        _waist_gap(_half(FORE_STATIONS, ["FL", "FR"]))))
+    return _hip_scallops(frame, ["FL", "FR"]) - _head_socket()
 
 
 def torso_aft() -> Part:
-    return _waist_aft_features(_half(AFT_STATIONS, ["RL", "RR"]))
+    return _hip_scallops(
+        _waist_aft_features(_tail_drive(_waist_gap(_half(AFT_STATIONS, ["RL", "RR"])))),
+        ["RL", "RR"])
 
 
 if __name__ == "__main__":

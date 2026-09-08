@@ -133,7 +133,7 @@ def envelope_mm() -> dict:
     if neither exists yet, returns ``pending`` (run ``cad.export`` first — computing
     it live from ``full_robot()`` is a ~90 s CSG fuse, so we prefer the cached mesh)."""
     for fname, kind in (("sabo_cat.stl", "cat shell (outer skin)"),
-                        ("robokitten_full.stl", "mechanical full assembly")):
+                        ("sabo_full.stl", "mechanical full assembly")):
         path = os.path.join(_CAD_OUT, fname)
         if os.path.exists(path):
             m = trimesh.load(path)

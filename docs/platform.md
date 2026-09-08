@@ -19,7 +19,7 @@ niceties.
 ## Contributions
 
 1. **A cost/quietness/compliance point that is currently unserved at kitten scale.**
-   ~$838 mid BOM, 1451 g, backdrivable serial servos with torque-off silent hold.
+   ~$834 mid BOM, 1314 g, backdrivable serial servos with torque-off silent hold.
 2. **A limb architecture that keeps the leg light + quiet + the motors central:**
    a **proximal four-bar knee** (crank → pushrod → rocker, no cable friction) and a
    **remote-axle hip** (hip servos in the torso core, driven out to the pivot by a
@@ -36,15 +36,15 @@ niceties.
 
 | | |
 |---|---|
-| **Mass** | 1451 g (plastic 360 g + components 1091 g) — target 0.8–1.6 kg |
-| **Cost (BOM)** | $711 / **$838** / $965 (lo / mid / hi) |
-| **DOF** | 14 actuated; per leg = 2 motorized (hip, knee) + coupled ankle/hock + rigid abduction; 6 expressive (waist, head pan/pitch/tilt, ears, tail) |
-| **Actuator** | Feetech STS3215 ×14 — 2.94 N·m stall, 60 g, TTL serial daisy-chain, **backdrivable** |
+| **Mass** | 1314 g (plastic 343 g + components 971 g) — target 0.8–1.6 kg |
+| **Cost (BOM)** | $699 / **$834** / $968 (lo / mid / hi) |
+| **DOF** | 12 actuated; per leg = 2 motorized (hip, knee) + coupled ankle/hock + rigid abduction; 4 expressive (waist, head pan/pitch, tail) — ears rigid, camera roll by EIS |
+| **Actuator** | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial daisy-chain, **backdrivable** |
 | **Compute** | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W (15 W default) |
 | **Sensors** | stereo CSI eyes, BNO085 IMU, 2× VL53L1X ToF, 2× I²S mic, BME688 e-nose, I²S speaker |
-| **Envelope** | 347 × 189 × 192 mm (posed) |
+| **Envelope** | 352 × 201 × 197 mm (posed) |
 | **Legs** | front 67.5 / 52.0 / 26.0 mm, rear 64.0 / 80.5 / 31.5 mm (digitigrade, cat-anatomical) |
-| **Fabrication** | fully 3D-printed frame (PLA/PETG), 48× M2 heat-set inserts; head + torso split for print |
+| **Fabrication** | fully 3D-printed frame (PLA/PETG), 72 heat-set inserts (64× M2 + 8× M3), clevis pivots on Ø3 pins; head + torso split for print |
 
 ## Mechanism (design contribution)
 
@@ -59,8 +59,8 @@ niceties.
   reciprocal apparatus) + rigid abduction → 2 motors/leg instead of 3–4, at the cost
   of turning-by-gait. A DOF/cost reduction to be benchmarked against a fully-actuated
   baseline.
-- **Dual-use DOF** (design-efficiency metric): 4 joints serve two jobs — the head
-  pan/pitch/tilt gimbal does camera stabilization **and** expression; the waist does
+- **Dual-use DOF** (design-efficiency metric): 3 joints serve two jobs — the head
+  pan/pitch gimbal does camera stabilization **and** expression; the waist does
   gait spine-flex **and** the arch/loaf posture.
 
 ## Benchmark protocol

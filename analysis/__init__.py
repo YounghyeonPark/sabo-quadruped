@@ -1,1 +1,1 @@
-"""Engineering analysis of the RoboKitten mechanical design."""
+"""Engineering analysis of the Sabo mechanical design."""

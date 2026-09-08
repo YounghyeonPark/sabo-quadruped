@@ -25,9 +25,9 @@ _DENS = P.EFFECTIVE_DENSITY
 FRAME_RGBA = "0.55 0.57 0.62 1"      # inner frame — solid grey
 SKIN_RGBA = "0.86 0.55 0.35 0.38"    # torso skin — translucent apricot (see frame inside)
 HEAD_RGBA = "0.82 0.83 0.88 1"       # head — opaque light skin (the cute face)
-HEAD_LINK = "head_tilt"
+HEAD_LINK = "head_pitch"
 # ears live on the head skin; the neck/gimbal stubs are internal — don't render them
-SKIP_VISUAL = {"ear_L", "ear_R", "head_pan", "head_pitch"}
+SKIP_VISUAL = {"ear_L", "ear_R", "head_pan"}
 
 
 def _fore_electronics() -> float:

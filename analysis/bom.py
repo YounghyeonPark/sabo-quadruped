@@ -40,7 +40,7 @@ COMPONENTS = [
     ("Sensors", "Mini speaker 8Ω", 1, 2, 5, "mouth — meow/trill/TTS"),
     # ---- actuators ----
     ("Actuators", "Feetech STS3215 serial bus servo (30 kg·cm)", P.N_SERVOS, 14, 18,
-     f"{P.N_SERVOS} joints: 8 leg + waist + head pan/pitch/tilt + ears + tail; "
+     f"{P.N_SERVOS} joints: 8 leg + waist + head pan/pitch + tail; "
      "TTL daisy-chain, position feedback, torque control"),
     ("Actuators", "TTL bus servo adapter (Waveshare / FE-URT-1)", 1, 5, 12,
      "UART↔half-duplex TTL bus for the STS3215 chain (replaces PCA9685)"),
@@ -53,8 +53,13 @@ COMPONENTS = [
      "separate rail + bulk cap; sized for realistic simultaneous servo current"),
     ("Power", "Bulk cap + XT60 + wiring/connectors", 1, 15, 30, "power distribution"),
     # ---- mechanical / fasteners ----
-    ("Mechanical", "M2/M3 screws + heat-set inserts", 1, 10, 18, "assembly"),
-    ("Mechanical", "Servo horns / pins / small bearings", 1, 12, 25, "joint hardware"),
+    # The two lines this replaced ("screws + inserts, $10-18" and "horns / pins /
+    # bearings, $12-25") were guesses that could not be ordered from. The real list is
+    # COUNTED from the CAD by analysis/hardware_bom.py -- inserts, screws, pivot pins,
+    # E-clips, hip bearings, drive axles, split dowels, each with its size -- and this
+    # row carries that module's total so the two can never disagree.
+    ("Mechanical", "Joint + fastener hardware (see docs/hardware_bom.md)", 1, None, None,
+     "counted from the CAD: `python -m analysis.hardware_bom`"),
     ("Mechanical", "TPU for foot pads", 1, 5, 10, "grippy toe caps"),
     ("Mechanical", "Faux-fur / silicone skin (optional)", 1, 0, 25,
      "cosmetic over-skin, PLAN §3.3 (optional)"),
@@ -87,6 +92,18 @@ def _printed_grams() -> float:
     return (frame + skin) * PRINT_WASTE
 
 
+def _hardware_cost() -> tuple[float, float]:
+    """Joint + fastener cost, counted from the CAD by ``analysis.hardware_bom``.
+
+    Falls back to a flat estimate if the CAD cannot be built (that module rebuilds every
+    printable part, which needs build123d)."""
+    try:
+        from analysis.hardware_bom import rows as hw_rows, totals as hw_totals
+        return hw_totals(hw_rows())
+    except Exception:
+        return (22.0, 43.0)
+
+
 def build_rows() -> tuple[list, float]:
     """The full BOM rows (components + the CAD-mass-derived filament line) and the
     computed printed-filament grams. Shared by ``main`` and by ``analysis.platform_spec``
@@ -94,7 +111,12 @@ def build_rows() -> tuple[list, float]:
     grams = _printed_grams()
     fil_low = grams / 1000.0 * FILAMENT_USD_PER_KG[0]
     fil_high = grams / 1000.0 * FILAMENT_USD_PER_KG[1]
-    rows = list(COMPONENTS)
+    # the joint/fastener row carries whatever the CAD-counted hardware list totals
+    hw_lo, hw_hi = _hardware_cost()
+    rows = [(cat, item, qty,
+             hw_lo if lo is None else lo,
+             hw_hi if hi is None else hi, note)
+            for cat, item, qty, lo, hi, note in COMPONENTS]
     rows.append(("Mechanical", f"3D-print filament (~{grams:.0f} g PLA/PETG)", 1,
                  round(fil_low, 1), round(fil_high, 1), "computed from CAD mass"))
     return rows, grams
