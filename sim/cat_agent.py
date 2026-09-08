@@ -2,7 +2,7 @@
 Simulated cat (Sami stand-in).
 ==============================
 
-A tiny behavioral model of a real cat, so the RoboKitten brain has something to
+A tiny behavioral model of a real cat, so the Sabo brain has something to
 react to in Phase 0. The cat carries a **trust** scalar and a **startle**
 scalar; together with distance they decide whether it approaches, wanders, or
 flees.

@@ -1,5 +1,5 @@
 """
-RoboKitten perception — raw Senses -> a small world model of facts.
+Sabo perception — raw Senses -> a small world model of facts.
 ===================================================================
 
 Perception is the layer that turns noisy sensor reads into the handful of

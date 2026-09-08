@@ -1,5 +1,5 @@
 """
-Simulation runner — wires the SimWorld to the RoboKitten brain.
+Simulation runner — wires the SimWorld to the Sabo brain.
 ===============================================================
 
 One ``Simulation`` owns a world, a brain, and an event buffer, and advances them
@@ -15,7 +15,7 @@ import threading
 from collections import deque
 
 from brain.hal import Event, EventSink
-from brain.robokitten import RoboKitten
+from brain.sabo import Sabo
 from sim.world import SimWorld
 
 
@@ -45,7 +45,7 @@ class Simulation:
         rng = random.Random(seed)
         self.world = SimWorld(rng)
         self.events = EventBuffer()
-        self.brain = RoboKitten(self.world, self.world, self.events, rng)
+        self.brain = Sabo(self.world, self.world, self.events, rng)
         self._lock = threading.Lock()
 
     def tick(self, dt: float) -> None:

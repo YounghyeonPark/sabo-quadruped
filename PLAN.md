@@ -1,5 +1,26 @@
 # RoboKitten — Project Plan
 
+> ## ⚠️ ARCHIVED — this is the original (Phase-0) plan, kept for provenance.
+>
+> The project shipped as **Sabo**, and several "locked" decisions below were
+> **superseded during the build**. Where this document and the code disagree, the
+> **code is authoritative** ([`cad/params.py`](cad/params.py) is the source of truth;
+> [`README.md`](README.md) and [`docs/platform.md`](docs/platform.md) describe what
+> was actually built).
+>
+> | This plan says | What was actually built | Where |
+> |---|---|---|
+> | Fork the **Mini Pupper 2** chassis (§9, "locked") | **Own parametric CAD** — cat-anatomical, digitigrade, generated from one parameter file | [`cad/`](cad/) |
+> | **Raspberry Pi** brain (§7) | **Jetson Orin Nano Super** (8 GB, 67 TOPS) — on-board edge AI | [`docs/edge_ai_hardware.md`](docs/edge_ai_hardware.md) |
+> | **PCA9685** PWM servo driver (§7) | **Feetech STS3215 serial bus** — one TTL daisy-chain, no PWM driver, backdrivable | [`hardware/servo_channel_map.py`](hardware/servo_channel_map.py) |
+> | **12 leg DOF** (3 per leg) + 5–6 expressive (§3.2) | **14 actuated** — 2 motors/leg (hip + knee, ankle *mechanically coupled*, abduction rigid) + 6 expressive | [`cad/params.py`](cad/params.py) |
+> | Borrow the IK/gait stack (§4.1) | Own gait + MuJoCo validation, four-bar knee, remote-axle hip | [`sim/`](sim/), [`analysis/`](analysis/) |
+>
+> **What survived intact** and still drives the project: the baby-schema
+> proportions (§2.1), the non-threat behavior rules (§2.2), the cat-language
+> communication table (§5.1), the kitten motion vocabulary (§4.2), and the layered
+> HAL software architecture (§8) — all implemented in [`brain/`](brain/).
+
 A from-scratch quadruped companion robot that **mimics a kitten** in shape,
 movement, and communication, built to befriend a real cat at home.
 

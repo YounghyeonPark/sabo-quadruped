@@ -1,8 +1,50 @@
-# RoboKitten Phase-0 — the autonomous brain + simulated cat + owner dashboard.
-# The brain/ package itself is pure standard library; only the dashboard needs Flask.
-flask>=3.0
+# Sabo — Python dependencies.
+#
+# Core install (everything in the README quickstart: CAD export, MuJoCo physics,
+# analysis/validation, the Phase-0 brain demo, and the test suite).
+#
+#     pip install -r requirements.txt
+#
+# Requires Python 3.14. Versions are floors matching what the artifacts in
+# docs/out/ were generated with — not upper-pinned.
 
-# --- future phases (not needed for Phase 0) ---
-# pybullet>=3.2      # physics view (sim/robokitten_pybullet.py)
-# piper-tts          # real TTS for brain/voice.py PiperVoice backend
-# pytest>=8.0        # to run tests/  (dev only)
+# --- CAD (cad/, sim/meshes.py) -------------------------------------------
+build123d>=0.11.1        # parametric solid modelling; the source-of-truth geometry
+trimesh>=4.12            # STL post-processing + mesh mass properties
+
+# --- physics (sim/, analysis/optimize.py, analysis/benchmark.py) ---------
+mujoco>=3.10             # gaits, cute-motion, four-bar closed loop, torque metrics
+
+# --- numerics + rendering (analysis/, cad/export.py, sim/mj_emulate.py) --
+numpy>=2.0
+matplotlib>=3.10         # four-bar / scaling-study plots, CAD preview figures
+pillow>=11.0             # headless render frames -> PNG / GIF
+
+# --- Phase-0 owner dashboard (dashboard/, run_phase0.py) -----------------
+flask>=3.0               # the brain/ package itself is pure standard library
+
+# --- tests ---------------------------------------------------------------
+pytest>=8.0
+
+# =========================================================================
+# Optional — not needed for anything in the README quickstart.
+# =========================================================================
+#
+# Vision backends (vision/detector.py). The default "stub" backend needs none.
+# opencv-python>=4.8,<5   # 'haar' backend ONLY. cv2 5.x REMOVED CascadeClassifier,
+#                         # so the frontal-cat-face cascade needs opencv 4.x.
+# ultralytics>=8.3        # 'yolo' backend: .pt / .onnx / .engine weights
+#
+# RL locomotion policy (training/deploy_policy.py, hardware gait engine).
+# onnxruntime>=1.20       # run an exported policy.onnx; absent -> stub holds stance
+#
+# Jetson-only hardware drivers (hardware/jetson_backend.py). Every import there
+# is guarded, so the backend runs in stub mode on a dev box without these.
+# Install on JetPack 6 only -- see hardware/README.md.
+# scservo-sdk             # Feetech STS3215 half-duplex TTL servo bus
+# adafruit-blinka         # board / busio on the Jetson 40-pin header
+# adafruit-circuitpython-bno08x     # IMU
+# adafruit-circuitpython-vl53l1x    # ToF x2
+# adafruit-circuitpython-bme680     # BME688 e-nose
+# sounddevice             # I2S mics (hearing)
+# Jetson.GPIO             # hardware PWM pin 33 -> LED eyes

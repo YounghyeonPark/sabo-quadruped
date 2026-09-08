@@ -21,7 +21,7 @@ import math
 
 from brain.hal import (BlinkKind, Body, CatDetection, EarPose, Event, EventSink,
                        Gait, ImuReading, ProximityReading, Senses, TailPose)
-from brain.robokitten import RoboKitten
+from brain.sabo import Sabo
 from cad import params as P
 from sim import gait as gaitmod
 
@@ -114,7 +114,7 @@ class BrainController:
         if self._brain is None:
             self._rig = rig
             self._senses = MujocoSenses(rig, self.clock)
-            self._brain = RoboKitten(self.body, self._senses, _Printer())
+            self._brain = Sabo(self.body, self._senses, _Printer())
 
     def __call__(self, rig, t):
         self._lazy(rig)

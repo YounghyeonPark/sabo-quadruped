@@ -1,5 +1,5 @@
 """
-RoboKitten mood — the personality state machine.
+Sabo mood — the personality state machine.
 =================================================
 
 A small finite-state machine over the ``WorldModel``. Mood is what gives the

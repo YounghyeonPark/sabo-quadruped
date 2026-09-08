@@ -1,5 +1,5 @@
 """
-RoboKitten expression — speak *cat* (and a little human).
+Sabo expression — speak *cat* (and a little human).
 =========================================================
 
 High-level, hardware-independent "verbs" composed from ``Body`` primitives +
@@ -7,7 +7,7 @@ High-level, hardware-independent "verbs" composed from ``Body`` primitives +
 Body directly. Because these are built only on the HAL, a play-bow looks the
 same in sim and on the real robot.
 
-Posture constants mirror the ``BEH`` table in ``sim/robokitten_sim.html`` so the
+Posture constants mirror the ``BEH`` table in ``sim/sabo_sim.html`` so the
 kitten's shapes match the already-tuned visual sim (front/rear stance heights as
 fractions of nominal). The cat-signal semantics mirror PLAN §5.1.
 """

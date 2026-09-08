@@ -1,6 +1,6 @@
 """
-RoboKitten — the brain loop.
-============================
+Sabo — the brain loop.
+======================
 
 Ties the layers together into the sense → perceive → decide → act cycle
 (PLAN §8), once per tick::
@@ -8,8 +8,8 @@ Ties the layers together into the sense → perceive → decide → act cycle
     Senses ──▶ Perception ──▶ MoodMachine ──▶ Behavior.step ──▶ Expression ──▶ Body
 
 The loop is hardware-agnostic: it only holds a ``Body``, ``Senses`` and an
-``EventSink``. Swap those three for hardware implementations and the exact same
-decision-making runs on the real Mini Pupper.
+``EventSink``. Swap those three for the ``hardware/jetson_backend.py``
+implementations and the exact same decision-making runs on the real robot.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from brain.perception import Perception
 from brain.voice import Voice
 
 
-class RoboKitten:
+class Sabo:
     def __init__(self, body: Body, senses: Senses, events: EventSink,
                  rng: Optional[random.Random] = None):
         self._body = body

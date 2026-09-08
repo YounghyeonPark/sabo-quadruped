@@ -1,5 +1,5 @@
 """
-RoboKitten behaviors — what each mood actually *does*.
+Sabo behaviors — what each mood actually *does*.
 ======================================================
 
 One behavior per mood. Each is a small stateful object with:
@@ -228,4 +228,4 @@ class RetreatBehavior(Behavior):
             self.ctx.expr.crouch_freeze()
 
 
-# mood name -> behavior class is wired in robokitten.py
+# mood name -> behavior class is wired in sabo.py

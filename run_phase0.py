@@ -1,5 +1,5 @@
 """
-RoboKitten — Phase 0 entrypoint.
+Sabo — Phase 0 entrypoint.
 ================================
 
 Runs the autonomous brain against the simulated cat.
@@ -35,7 +35,7 @@ DT = 1.0 / 30.0   # sim tick
 
 
 def run_headless(sim: Simulation, duration: float) -> None:
-    print(f"RoboKitten headless — {duration:.0f}s @ {1/DT:.0f}Hz. "
+    print(f"Sabo headless — {duration:.0f}s @ {1/DT:.0f}Hz. "
           f"Watch mood shift as the cat reacts.\n")
     steps = int(duration / DT)
     last_id = -1
@@ -72,12 +72,12 @@ def run_live(sim: Simulation, port: int, speed: float) -> None:
 
     threading.Thread(target=loop, daemon=True).start()
     app = create_app(sim)
-    print(f"RoboKitten dashboard → http://localhost:{port}  (Ctrl+C to stop)")
+    print(f"Sabo dashboard → http://localhost:{port}  (Ctrl+C to stop)")
     app.run(host="127.0.0.1", port=port, threaded=True, debug=False)
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="RoboKitten Phase-0 brain + sim")
+    ap = argparse.ArgumentParser(description="Sabo Phase-0 brain + sim")
     ap.add_argument("--headless", action="store_true")
     ap.add_argument("--duration", type=float, default=45.0)
     ap.add_argument("--speed", type=float, default=1.0)

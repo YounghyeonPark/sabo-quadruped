@@ -1,6 +1,6 @@
 """
-RoboKitten HAL — Hardware Abstraction Layer
-===========================================
+Sabo HAL — Hardware Abstraction Layer
+=====================================
 
 This module is the *seam* of the whole project. Everything in ``brain/`` talks
 to the robot only through the two interfaces defined here:
@@ -9,10 +9,11 @@ to the robot only through the two interfaces defined here:
     * ``Senses`` — sensor reads     (what the kitten can *perceive*)
 
 In Phase 0 these are implemented by the simulator (``sim/world.py``). On the
-real Mini Pupper the *same* ``brain/`` code runs unchanged — you only write a
-new ``Body``/``Senses`` pair backed by PCA9685 servo writes, a Pi-camera cat
-detector, and an MPU6050 IMU. The pybullet sim's own note —
-"swap ``set_joint()`` for a PCA9685 servo write" — is exactly this boundary.
+real robot the *same* ``brain/`` code runs unchanged against the other side of
+the seam — ``hardware/jetson_backend.py``, which backs ``Body`` with Feetech
+STS3215 serial-bus writes and ``Senses`` with the CSI eyes / BNO085 IMU /
+VL53L1X ToF pair. Implementing this pair of interfaces is the *only* work a new
+target platform needs.
 
 Units & conventions
 --------------------

@@ -1,5 +1,5 @@
 """
-RoboKitten voice — cat sounds + speech.
+Sabo voice — cat sounds + speech.
 =======================================
 
 Phase 0 is a **swappable stub**: each utterance is routed to ``Body.speak`` (so

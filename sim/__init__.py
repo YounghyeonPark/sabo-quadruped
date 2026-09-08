@@ -1,1 +1,1 @@
-"""RoboKitten simulation package (Phase-0 world + simulated cat)."""
+"""Sabo simulation package (Phase-0 world + simulated cat)."""

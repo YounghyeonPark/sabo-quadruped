@@ -1,5 +1,5 @@
 """
-RoboKitten owner dashboard — Flask + Server-Sent Events.
+Sabo owner dashboard — Flask + Server-Sent Events.
 ========================================================
 
 Serves a single live page and streams the simulation state to it ~20×/s over
