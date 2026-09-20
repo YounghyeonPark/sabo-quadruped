@@ -79,17 +79,18 @@ def _seg_stations(leg: str, seg: str) -> list:
     if not slabs:
         return []
 
-    # The envelope is carried as BOUNDS, not as a centre plus a half-width, and each
-    # bound only ever moves outward going up. Growing a half-width while averaging the
-    # centre -- which is what this did first -- slides the section off the limb: at
-    # mid-thigh the smoothed centre sat 2.9 mm inboard of the servo it was covering, ate
-    # the 1.2 mm running clearance, and the cover shared 1200 mm3 with the limb. A
-    # running min and max cannot drift; it is also the only smoothing the shape needs.
-    for i in range(1, len(slabs)):
-        slabs[i][2] = min(slabs[i][2], slabs[i - 1][2])
-        slabs[i][3] = max(slabs[i][3], slabs[i - 1][3])
-        slabs[i][4] = min(slabs[i][4], slabs[i - 1][4])
-        slabs[i][5] = max(slabs[i][5], slabs[i - 1][5])
+    # The envelope is carried as BOUNDS, not as a centre plus a half-width. Growing a
+    # half-width while averaging the centre -- which is what this did first -- slides the
+    # section off the limb: at mid-thigh the smoothed centre sat 2.9 mm inboard of the
+    # servo it was covering, ate the 1.2 mm running clearance, and the cover shared
+    # 1200 mm3 with the limb. Bounds cannot drift.
+    #
+    # They are NOT run up into a monotone envelope. That was tried, to turn the thigh's
+    # mid-length servo bulge into a haunch, and it carried the servo's full 59 mm width
+    # straight up to the hip: the cover came out a slab as tall as the torso with a flat
+    # outboard face, hanging off the shoulder like a suitcase. A cat's FRONT shoulder is
+    # slim; what is thick is the muscle belly halfway down, tapering to both joints. The
+    # raw bounds already describe that spindle, so they are left alone.
 
     def station(z, sl):
         return (z, (sl[2] + sl[3]) / 2, (sl[4] + sl[5]) / 2,
@@ -112,7 +113,7 @@ def _seg_stations(leg: str, seg: str) -> list:
     _z, cx1, cy1, hx1, hy1 = out[-1]
     out.insert(0, (e0, cx0, cy0, hx0, hy0))
     out.append((e1, cx1, cy1, hx1, hy1))
-    for f in (0.86, 0.55):                      # quarter-circle of stations: d = R*sqrt(1-f^2)
+    for f in (0.86, 0.55):                      # CAP_STATIONS of them; d = R*sqrt(1-f^2)
         d = CAP_RISE * math.sqrt(max(1e-6, 1.0 - f * f))
         out.insert(0, (e0 - d, cx0, cy0, hx0 * f, hy0 * f))
         out.append((e1 + d, cx1, cy1, hx1 * f, hy1 * f))
@@ -135,8 +136,9 @@ def _seg_stations(leg: str, seg: str) -> list:
     return sized
 
 
-CORNER_R = 11.0         # how round a section may get, capped per station
+CORNER_R = 17.0         # how round a section may get, capped per station
 CAP_RISE = 9.0          # how far a domed end reaches past the limb
+CAP_STATIONS = 2        # sections per dome, beyond the limb's own ends
 
 
 def _loft_stations(stations, grow: float = 0.0) -> Part:
@@ -236,7 +238,11 @@ def _fairing(leg: str, seg: str, trim_torso: bool) -> Part:
     # follow the LIMB, and once the outer wall was reshaped into a haunch that no longer
     # follows the limb, the webs of wall left standing between boxes of different widths
     # broke off -- the FL thigh came out in five pieces. A parallel wall has no webs.
-    inner = _loft_stations(st, grow=-P.FAIRING_T)
+    # The cavity stops at the limb's ends, so the domed caps beyond them come out SOLID.
+    # Running the inner wall the full length instead leaves the fairing an open-ended
+    # tube, and the proximal mouth points straight outboard: from the front the shoulders
+    # read as two bolt-on drums with holes in them.
+    inner = _loft_stations(st[CAP_STATIONS:-CAP_STATIONS], grow=-P.FAIRING_T)
     part = outer - inner
     if trim_torso:
         for ko in _torso_keepouts(leg):
