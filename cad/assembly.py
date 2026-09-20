@@ -17,6 +17,7 @@ half's frame origin is at the waist.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from build123d import Box, Part, Pos, Rotation, Sphere, scale
@@ -27,6 +28,8 @@ from cad.parts.ears import ear
 from cad.parts.head import head
 from cad.parts.neck import neck_column, pan_crank, pan_pushrod
 from cad.parts.leg import crank, leg_parts, pushrod, stance_linkage
+from cad.parts.fairing import shank_fairing, thigh_fairing
+from cad.parts.shell import body_shell_aft, body_shell_fore, head_shell
 from cad.parts.tail import linkage_transforms as tail_linkage_transforms
 from cad.parts.tail import tail, tail_crank, tail_pushrod
 from cad.servo import DEFAULT as SERVO
@@ -122,26 +125,72 @@ def n_motors() -> int:
     return sum(1 for lk in kinematics() if lk.actuated)
 
 
-PRINTABLE = {
-    "torso_fore": torso_fore(), "torso_aft": torso_aft(),
-    "head": head(), "ear": ear(), "tail": tail(),
+class _LazyParts(Mapping):
+    """``PRINTABLE`` — the printed-part table, with each solid built on first use.
+
+    This was a plain dict literal, which meant importing ``cad.assembly`` built every
+    printed part in the robot. That was merely wasteful while the table held frame pieces:
+    ``sim/mjcf.py`` reads exactly ONE entry from it, ``torso_fore``, and every MuJoCo run
+    goes through that import.
+
+    It stopped being merely wasteful when the skin and the limb fairings joined the table.
+    Those carry swept leg ports and a torso keepout sampled across the hip window -- the
+    most expensive booleans in the project -- and building all of them to answer a lookup
+    for one rib cage took the machine down. Names and membership are free now; solids are
+    built once, on demand, and cached.
+    """
+
+    def __init__(self, builders: dict):
+        self._builders = builders
+        self._cache: dict = {}
+
+    def __getitem__(self, key: str):
+        if key not in self._cache:
+            self._cache[key] = self._builders[key]()
+        return self._cache[key]
+
+    def __iter__(self):
+        return iter(self._builders)
+
+    def __len__(self):
+        return len(self._builders)
+
+
+def _leg(leg: str, seg: str):
+    """One segment of one leg, without rebuilding the other three each time."""
+    return lambda: leg_parts(leg)[seg]
+
+
+PRINTABLE = _LazyParts({
+    "torso_fore": torso_fore, "torso_aft": torso_aft,
+    "head": head, "ear": ear, "tail": tail,
     # the head gimbal (params.HEAD_DRIVE): the neck column is the yaw link, and the crank
     # + pushrod reach it from the chest, where the yaw actuator had to go
-    "neck_column": neck_column(), "pan_crank": pan_crank(), "pan_pushrod": pan_pushrod(),
+    "neck_column": neck_column, "pan_crank": pan_crank, "pan_pushrod": pan_pushrod,
     # the tail's remote four-bar (params.TAIL_DRIVE): the actuator is forward in the aft
     # torso because nothing fits at the tail pivot itself -- see analysis/actuator_fit.py
-    "tail_crank": tail_crank(), "tail_pushrod": tail_pushrod(),
-    "hipbr_F_L": leg_parts("FL")["hip_bracket"], "hipbr_F_R": leg_parts("FR")["hip_bracket"],
-    "hipbr_R_L": leg_parts("RL")["hip_bracket"], "hipbr_R_R": leg_parts("RR")["hip_bracket"],
-    "upper_F": leg_parts("FL")["upper"], "lower_F": leg_parts("FL")["lower"],
-    "foot_F": leg_parts("FL")["foot"],
-    "upper_R": leg_parts("RL")["upper"], "lower_R": leg_parts("RL")["lower"],
-    "foot_R": leg_parts("RL")["foot"],
+    "tail_crank": tail_crank, "tail_pushrod": tail_pushrod,
+    "hipbr_F_L": _leg("FL", "hip_bracket"), "hipbr_F_R": _leg("FR", "hip_bracket"),
+    "hipbr_R_L": _leg("RL", "hip_bracket"), "hipbr_R_R": _leg("RR", "hip_bracket"),
+    "upper_F": _leg("FL", "upper"), "lower_F": _leg("FL", "lower"),
+    "foot_F": _leg("FL", "foot"),
+    "upper_R": _leg("RL", "upper"), "lower_R": _leg("RL", "lower"),
+    "foot_R": _leg("RL", "foot"),
     # four-bar knee linkage — crank + pushrod share FOURBAR, so F/R are identical
     # geometry, but listed per leg-type per the build convention.
-    "crank_F": crank(), "crank_R": crank(),
-    "pushrod_F": pushrod(), "pushrod_R": pushrod(),
-}
+    "crank_F": crank, "crank_R": crank,
+    "pushrod_F": pushrod, "pushrod_R": pushrod,
+    # THE SKIN. It used to be exported as shell_fore/aft/head.stl -- files anyone would
+    # print -- while sitting outside this table, so it carried none of the manifest's
+    # checks and nobody noticed it had no opening for the legs, the neck, the tail or the
+    # waist, and shared solid material with all four.
+    "shell_fore": body_shell_fore, "shell_aft": body_shell_aft,
+    "shell_head": head_shell,
+    # ...and the moving half of it. A static skin cannot close the flank the knee servo
+    # sweeps open, so the scapula/haunch covers turn with the thigh (cad/parts/fairing.py).
+    "fair_upper_F": lambda: thigh_fairing("FL"), "fair_lower_F": lambda: shank_fairing("FL"),
+    "fair_upper_R": lambda: thigh_fairing("RL"), "fair_lower_R": lambda: shank_fairing("RL"),
+})
 
 
 def _leg_locations(leg, hip, knee, ankle):

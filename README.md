@@ -9,7 +9,7 @@
 </p>
 <p align="center"><em>Left: the face — Ø100 head on a 180 mm body, baby-schema by intent and by
 actuator budget (it holds two of the twelve servos). Right: walk gait, CoM-tracked — torso
-roll ≈ 3.1° p-p.</em></p>
+roll ≈ 3.0° p-p.</em></p>
 
 Sabo is a kitten-scale (**~1.31 kg**) quadruped platform: **fully 3D-printed**, driven by
 cheap **serial-bus servos**, and designed to be **quiet** and **backdrivable** enough to
@@ -39,12 +39,19 @@ backdrivable + sub-1 kg** at once.
   there is: the hips from the torso core, the knees from up the thigh, the tail and the
   head's yaw from the body. `analysis/actuator_fit.py` is what decides.
 - **A limb architecture for cheap compliance** — a **proximal four-bar knee** (cable-free,
-  light shank), a **remote-axle hip** (servos in the torso → −93 % hip lateral inertia),
+  light shank), a **remote-axle hip** (the hip servos in the torso → −93 % of *their* lateral inertia, −46 % across all 8 leg servos),
   and **coupled underactuation** (2 motors/leg).
 - **Buildable, not just drawable** — every pivot is a **clevis in double shear** and the
   thigh is a channel the whole four-bar runs inside, so no two printed parts share solid.
   A regression test ([`tests/test_geometry.py`](tests/test_geometry.py)) rebuilds the posed
-  robot and fails on any interference, missing servo relief, or unfastened part.
+  robot and fails on any interference, missing servo relief, or unfastened part — and it
+  sweeps the **whole commanded motion range**, not the stance pose, which is what caught a
+  rear thigh fouling the ribcage 22° past where the clearance had been cut for.
+- **A skin that is a part, not a picture** — the shell carries real openings for everything
+  that passes through it (legs, neck, tail, spine joint), each cut from the swept volume of
+  the thing that passes. The flank cannot be closed by a static shell, because the knee
+  servo lies laterally and sweeps it open, so the scapula and haunch **fairings**
+  ([`cad/parts/fairing.py`](cad/parts/fairing.py)) turn with the thigh instead.
 - **Actuators that actually fit** — `analysis/actuator_fit.py` measures whether there is
   *room* for each servo, not just torque. It is why the tail is driven remotely (like the
   hip), why the head is Ø100 and sits at the torso's nose, and why the last expression
@@ -63,13 +70,13 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 
 | Platform | |
 |---|---|
-| Mass | **1314 g** (plastic 343 + components 971) — target 0.8–1.6 kg |
+| Mass | **1524 g** (plastic 553 + components 971) — target 0.8–1.6 kg |
 | BOM cost | $699 / **$834** / $968 (lo / mid / hi) |
 | DOF | **12 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 4 expressive (waist, head pan/pitch, tail). The head holds two servo housings, so the ears are rigid and camera **roll** is corrected electronically instead of by a third gimbal axis |
 | Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
 | Compute | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W |
 | Four-bar knee | 128° ROM, 41–140° transmission angle (singularity-free) |
-| Remote-axle hip | **−93 %** hip lateral inertia (motors relocated to the torso) |
+| Remote-axle hip | **−93 %** lateral inertia of the **hip** servos (−46 % counting all 8 leg servos — the knee servos stay on the thighs) |
 | Envelope | 352 × 201 × 197 mm |
 | Viable scale range | **k ≈ 0.7–1.5** (body 126–270 mm) — the fixed actuator sets the window |
 
@@ -77,9 +84,9 @@ Gait benchmark (MuJoCo):
 
 | Gait | Upright | Travel | Peak torque (% of stall) | Torso roll p-p |
 |---|:--:|--:|--:|--:|
-| stand | ✓ | — | 12 % | 0.0° |
-| walk | ✓ | 8 cm | 40 % | 3.1° |
-| trot | ✓ | 39 cm | 34 % | 3.4° |
+| stand | ✓ | — | 13 % | 0.0° |
+| walk | ✓ | 8 cm | 43 % | 3.0° |
+| trot | ✓ | 41 cm | 35 % | 3.0° |
 
 > Hardware-measured metrics (acoustic dB, backlash, backdrive torque, battery runtime,
 > sim-to-real gap) are **TBD** — pending the physical build (see

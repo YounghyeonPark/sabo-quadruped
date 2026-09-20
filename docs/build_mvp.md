@@ -112,7 +112,7 @@ From `cad/out/print_manifest.json` — **19 distinct parts**, 6 split sub-parts,
 | pushrod_F / pushrod_R | 2 ea (×4) | PETG | 4 / 60% | no | flat, link plane down |
 
 **Material split:** structural frame (legs, four-bar, brackets, torso) in **PETG**;
-cosmetic (head, ears, tail) in **PLA**; paw pads in **TPU**. Cosmetic over-skin
+cosmetic (head, ears, tail) in **PLA**; paw pads in **TPU**. Skin
 (`shell.py`) is a separate clip-on cover, printed last (PLA).
 
 ### 2b. The 3 split parts → print 6 halves + bond (`split.py`, assembly §3)
@@ -135,10 +135,11 @@ squeeze-out; clamp until cured.
 
 ### 2c. Filament + time estimate
 
-- **Filament to order: ~667 g** PLA/PETG (`analysis.bom._printed_grams`):
-  frame **360.3 g** (`parts_manifest.totals.printed_plastic_g`) + cosmetic skin
-  **~205 g** + **×1.18** supports/purge/failure waste. Buy **1 kg PETG + 1 kg PLA**
-  spools (structural vs cosmetic) + a short length of TPU for the 4 paw pads.
+- **Filament to order: ~653 g** PLA/PETG (`analysis.bom._printed_grams`):
+  **553 g** of printed parts (`parts_manifest.totals.printed_plastic_g`, which now
+  includes the skin and the limb fairings — they are real parts, not an estimate
+  bolted on afterwards) + **×1.18** supports/purge/failure waste. Buy **1 kg PETG +
+  1 kg PLA** spools (structural vs skin) + a short length of TPU for the 4 paw pads.
   Exact per-spool PETG/PLA gram split from your slicer — `[verify]` at slice time.
 - **Print time: ~40–55 h** total across all parts on a single printer (estimate at
   ~12–14 g/h effective for these small, high-perimeter, high-infill parts; the

@@ -19,7 +19,7 @@ niceties.
 ## Contributions
 
 1. **A cost/quietness/compliance point that is currently unserved at kitten scale.**
-   ~$834 mid BOM, 1314 g, backdrivable serial servos with torque-off silent hold.
+   ~$834 mid BOM, 1524 g, backdrivable serial servos with torque-off silent hold.
 2. **A limb architecture that keeps the leg light + quiet + the motors central:**
    a **proximal four-bar knee** (crank → pushrod → rocker, no cable friction) and a
    **remote-axle hip** (hip servos in the torso core, driven out to the pivot by a
@@ -36,7 +36,7 @@ niceties.
 
 | | |
 |---|---|
-| **Mass** | 1314 g (plastic 343 g + components 971 g) — target 0.8–1.6 kg |
+| **Mass** | 1524 g (plastic 553 g + components 971 g) — target 0.8–1.6 kg |
 | **Cost (BOM)** | $699 / **$834** / $968 (lo / mid / hi) |
 | **DOF** | 12 actuated; per leg = 2 motorized (hip, knee) + coupled ankle/hock + rigid abduction; 4 expressive (waist, head pan/pitch, tail) — ears rigid, camera roll by EIS |
 | **Actuator** | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial daisy-chain, **backdrivable** |
@@ -44,7 +44,7 @@ niceties.
 | **Sensors** | stereo CSI eyes, BNO085 IMU, 2× VL53L1X ToF, 2× I²S mic, BME688 e-nose, I²S speaker |
 | **Envelope** | 352 × 201 × 197 mm (posed) |
 | **Legs** | front 67.5 / 52.0 / 26.0 mm, rear 64.0 / 80.5 / 31.5 mm (digitigrade, cat-anatomical) |
-| **Fabrication** | fully 3D-printed frame (PLA/PETG), 72 heat-set inserts (64× M2 + 8× M3), clevis pivots on Ø3 pins; head + torso split for print |
+| **Fabrication** | fully 3D-printed frame + skin (PLA/PETG), 31 distinct parts, 88 heat-set inserts (80× M2 + 8× M3), clevis pivots on Ø3 pins; head + torso split for print |
 
 ## Mechanism (design contribution)
 
@@ -53,7 +53,10 @@ niceties.
   reachable knee: front 23.7–152.3°, rear 35.4–164.0° (cat-correct fore < hind fold).
   Verified as a closed loop in MuJoCo (held to 0.16 mm) and as CAD parts on the leg.
 - **Remote-axle hip**: hip servos relocated to the torso core, driven to the pivot by
-  a Ø6 axle in bearings → per-hip lateral inertia **16.46 → 1.16 ×10⁻⁴ kg·m² (−93%)**;
+  a Ø6 axle in bearings → per-hip lateral inertia **16.46 → 1.16 ×10⁻⁴ kg·m² (−93%)**.
+  That figure is scoped to the **four hip servos**. The four knee servos did not move —
+  each still rides its thigh at the same hip line — so across all eight leg servos it is
+  **32.92 → 17.62 ×10⁻⁴ kg·m² (−46%)**;
   shoulder skin de-flared 81 → 62 mm half-width.
 - **Coupled underactuation**: ankle/hock mechanically coupled to the knee (cat
   reciprocal apparatus) + rigid abduction → 2 motors/leg instead of 3–4, at the cost
@@ -69,9 +72,9 @@ niceties.
 
 | Gait | Upright | Travel | Peak τ (% stall) | Headroom | Roll p-p | Cam shake |
 |---|:--:|--:|--:|--:|--:|--:|
-| stand | PASS | 0 cm | 12% | 88% | 0.0° | 0.0 / 0.1° |
-| walk | PASS | 11 cm | 44% | 56% | 2.5° | 1.8 / 0.5° |
-| trot | PASS | 48 cm | 35% | 65% | 3.1° | 3.8 / 1.3° |
+| stand | PASS | 0 cm | 13% | 87% | 0.0° | 0.0 / 0.0° |
+| walk | PASS | 8 cm | 43% | 57% | 3.0° | 3.0 / 1.1° |
+| trot | PASS | 41 cm | 35% | 65% | 3.0° | 3.9 / 1.3° |
 
 Plus: four-bar ROM/transmission-angle/monotonicity, remote-hip inertia reduction,
 DOF-sharing count — all from the model.

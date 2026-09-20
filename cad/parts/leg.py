@@ -273,14 +273,50 @@ def _servo_pack(px: float, pz: float, pivot_y: float, sign: int,
     return boss, cut
 
 
+# How the knee servo's housing is laid out. body.py has to carve the torso for the volume
+# this boss sweeps, and it used to restate the geometry from SERVO.pocket itself -- so when
+# the servo was turned to lie along the thigh, the ribcage relief kept clearing the old
+# orientation and the thigh started sharing 262 mm3 with it. One source now.
+# The 45 mm length runs FORE-AFT, and it is worth writing down why, because the reason
+# the code used to give is obsolete and the right one is not obvious.
+#
+# The old reason was to stay clear in Z of the HIP servo above it. That servo moved into
+# the torso core when the hip went remote-axle (params.HIP_DRIVE), so nothing has been
+# above the crank boss for a while.
+#
+# The real reason is the sweep. The hip carries this housing through the flank, and what
+# sets the width of the opening it needs is the housing's FURTHEST radius from the hip
+# axis -- the arc at that radius, not the arc at the pivot. Lying fore-aft, the boss
+# reaches r = 39 mm and sweeps a 37 mm arc. Turned to lie along the thigh it is narrower
+# across the sweep, which looks like the win, and it is not: its far end then sits at
+# r = 67 mm and sweeps 63 mm. Measured, that turn made the fore leg port BIGGER --
+# 8490 mm3 to 10712, x-span 76 mm to 87.
+BOSS_CORNER_R = 5.0            # _servo_pack rounds every housing by this
+KNEE_BOSS_LONG_AXIS = "x"      # fore-aft: keeps the housing's far corner close to the hip
+KNEE_BOSS_SHAFT_END = +1
+
+
+def knee_boss_envelope(length: float, sign: int) -> tuple[tuple, tuple]:
+    """(centre, (dx, dy, dz)) of the knee-servo housing, in the thigh's own frame."""
+    l, w, h = SERVO.pocket
+    wall = P.HIP_BOSS_WALL
+    dx, dz = ((l, w) if KNEE_BOSS_LONG_AXIS == "x" else (w, l))
+    ecc = SERVO.shaft_offset * KNEE_BOSS_SHAFT_END
+    ex, ez = (ecc, 0.0) if KNEE_BOSS_LONG_AXIS == "x" else (0.0, ecc)
+    dy = h + 2 * wall
+    z = -(length - P.FOURBAR["ground"])
+    return ((ex, -sign * (P.FB_HORN_Y + dy / 2.0), z + ez),
+            (dx + 2 * wall, dy, dz + 2 * wall))
+
+
 def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
     """Relocate the knee servo UP the thigh: a boss at ``ground`` mm above the knee
     housing the knee servo whose output IS the crank pivot (shaft on Y at the thigh
     centreline). The body is tucked INBOARD via ``_servo_pack`` so the crank boss no
-    longer juts ~21 mm past the joint plane. Its 45 mm length runs FORE-AFT (not down
-    the thigh), so its 24 mm width takes the vertical (Z) — that keeps the crank servo
-    clear (in Z) of the hip servo above it, which is now also tucked inboard in the
-    same Y band; both servos sharing the inboard band would otherwise collide."""
+    longer juts ~21 mm past the joint plane.
+
+    Its orientation is set by ``KNEE_BOSS_LONG_AXIS``; see the note there for why it
+    lies fore-aft, which is not the reason the code used to give."""
     z = -(length - P.FOURBAR["ground"])
     # shift the crank servo body ~6 mm DOWN the thigh (shaft stays on the crank pivot)
     # so its top clears the hip servo boss centred 29.5 mm above it.
@@ -289,7 +325,8 @@ def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
     # ``off=(0,-6)`` nudge in Z was not a motion a real servo can make. Its 42 mm depth
     # along the hip axis still reaches inboard past the torso flank, so the torso carries
     # a swept clearance for it (body.py :: _hip_sweep_relief) instead.
-    boss, cut = _servo_pack(0.0, z, -sign * P.FB_HORN_Y, sign, long_axis="x")
+    boss, cut = _servo_pack(0.0, z, -sign * P.FB_HORN_Y, sign,
+                            long_axis=KNEE_BOSS_LONG_AXIS, shaft_end=KNEE_BOSS_SHAFT_END)
     return strut + boss - cut
 
 
@@ -482,6 +519,53 @@ def hip_pad_y(sign: int = 1) -> float:
     return sign * (lo - P.CLEVIS_CHEEK_T)
 
 
+# ------------------------------------------------------------------ fairing mounting
+# ``_bone_strut`` pinches its middle by ``waist``, and its station table gives the exact
+# half-widths at t = 0.18 and 0.82. Putting the fairing screws there means both this
+# module (which cuts the inserts) and fairing.py (which cuts the matching clearance holes)
+# can place them from NUMBERS, without either building the other's solid -- asking the
+# built segment would recurse, since leg_parts() is what would be calling in.
+STRUT_WAIST = 0.86
+# Fractions of segment length, from the proximal joint, with the y half-width the strut
+# table gives there. The shank's stations are BOTH below 0.6: its top ``KNEE_BLADE_L`` =
+# 30 mm is squeezed to a 7 mm blade so it can drop into the thigh's channel, so the
+# obvious 0.18 station put the bore at y = 7.05 where the material only reaches 3.5 --
+# a heat-set insert floating in air.
+FAIRING_MOUNT_T = {"upper": (0.18, 0.82), "lower": (0.68, 0.88)}
+_STRUT_RY = {"lower": (6.19, 6.19)}     # 7.2 * STRUT_WAIST, the waisted mid-span half-width
+
+
+def fairing_mounts(length: float, seg: str, sign: int = 1) -> list[tuple[float, float]]:
+    """[(z, y), ...] in the segment's own frame where its fairing bolts on.
+
+    Takes the segment LENGTH rather than a leg name: ``upper_leg``/``lower_leg`` are built
+    per length and do not know whether they are a front or a rear leg, and handing them
+    the wrong one would put the front leg's stations on the rear.
+
+    ``y`` is the OUTBOARD face: the screw comes in from the visible side, through the
+    fairing wall and into an insert in the limb. The thigh's servo pack is inboard of the
+    strut, so a bore entering outboard meets the strut first even where it passes the
+    bulge.
+    """
+    if seg == "upper":
+        half, yoff = P.thigh_profile()
+        ry, centre, waist = (half, half), yoff, STRUT_WAIST
+    else:
+        ry, centre, waist = _STRUT_RY["lower"], 0.0, 1.0
+    return [(-t * length, sign * (centre + r * waist))
+            for t, r in zip(FAIRING_MOUNT_T[seg], ry)]
+
+
+def _fairing_inserts(part: Part, length: float, seg: str, sign: int = 1) -> Part:
+    """Blind heat-set bores in the limb, for the fairing that clips over it."""
+    depth = P.HEATSET[P.FAIRING_SCREW]["depth"] + 1.0
+    for z, y in fairing_mounts(length, seg, sign):
+        # bore inward from the outboard face, running toward the centreline
+        off = y - (1.0 if y >= 0 else -1.0) * depth / 2.0
+        part -= Pos(0, off, z) * F.heatset_hole(P.FAIRING_SCREW, "y", depth)
+    return part
+
+
 def upper_leg(length: float, sign: int = 1) -> Part:
     """Thigh — a forward-opening CHANNEL that houses the whole four-bar.
 
@@ -495,7 +579,8 @@ def upper_leg(length: float, sign: int = 1) -> Part:
     strut = _thigh_channel(strut, length, sign)
     strut = _crank_pivot_boss(strut, length, sign)
     strut = _fork_seat(strut, -length, r=KNEE_FORK_R, open_dir=-1)   # knee fork takes the shank
-    return _hip_horn_mount(strut, sign)                # driven out from the hip drive axle
+    strut = _hip_horn_mount(strut, sign)               # driven out from the hip drive axle
+    return _fairing_inserts(strut, length, "upper", sign)
 
 
 def lower_leg(length: float, stance_knee: float) -> Part:
@@ -509,7 +594,8 @@ def lower_leg(length: float, stance_knee: float) -> Part:
     strut = strut + _rocker_arm(stance_knee)          # rocker welded on the shank at the knee
     # the blade has to stay narrow for as long as the pushrod runs beside it in the channel
     strut = _tongue_seat(strut, 0.0, r=KNEE_TONGUE_R, open_dir=+1, reach=KNEE_BLADE_L)
-    return _fork_seat(strut, -length, r=ANKLE_FORK_R, open_dir=-1)   # ankle fork takes the foot
+    strut = _fork_seat(strut, -length, r=ANKLE_FORK_R, open_dir=-1)  # ankle fork takes the foot
+    return _fairing_inserts(strut, length, "lower")
 
 
 def foot_seg(length: float) -> Part:
@@ -524,7 +610,20 @@ def foot_seg(length: float) -> Part:
     return strut + paw
 
 
+_LEG_PARTS_CACHE: dict[str, dict] = {}
+
+
 def leg_parts(leg: str) -> dict[str, Part]:
+    """Every printed piece of one leg, built once per leg and cached.
+
+    It is called from the printable table, the fairings, the assembly and the tests, and
+    each caller usually wants a single segment. Rebuilding six solids to hand back one was
+    cheap enough to ignore until the fairings started asking; the parts are immutable in
+    practice (build123d booleans return new objects), so the cache is safe to share.
+    """
+    hit = _LEG_PARTS_CACHE.get(leg)
+    if hit is not None:
+        return hit
     from sim.gait import stance_angles
     g = P.leg_geom(leg)
     s = P.leg_plane_sign(leg)
@@ -532,7 +631,7 @@ def leg_parts(leg: str) -> dict[str, Part]:
     # slide the fore-aft hip servo body toward the waist (front legs: -x, rear: +x) so
     # it stays inside the torso length rather than poking past the nose / tail.
     x_shift = -16.0 if P.is_front(leg) else 16.0
-    return {
+    out = {
         "hip_bracket": hip_bracket(s, g["hip_off"], x_shift),
         "axle": hip_axle(g["hip_off"]),
         "upper": upper_leg(g["upper"], s),
@@ -541,6 +640,8 @@ def leg_parts(leg: str) -> dict[str, Part]:
         "lower": lower_leg(g["lower"], knee),
         "foot": foot_seg(g["foot"]),
     }
+    _LEG_PARTS_CACHE[leg] = out
+    return out
 
 
 if __name__ == "__main__":

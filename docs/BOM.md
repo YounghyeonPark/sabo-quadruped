@@ -50,7 +50,7 @@ Self-sourced build. Prices = typical maker USD (~2025–26), low–high (vendor/
 | Joint + fastener hardware (see docs/hardware_bom.md) | 1 | 38–83 | 38–83 | counted from the CAD: `python -m analysis.hardware_bom` |
 | TPU for foot pads | 1 | 5–10 | 5–10 | grippy toe caps |
 | Faux-fur / silicone skin (optional) | 1 | 0–25 | 0–25 | cosmetic over-skin, PLAN §3.3 (optional) |
-| 3D-print filament (~657 g PLA/PETG) | 1 | 13–18 | 13–18 | computed from CAD mass |
+| 3D-print filament (~653 g PLA/PETG) | 1 | 13–18 | 13–18 | computed from CAD mass (frame + skin + fairings) |
 | **Mechanical subtotal** | | | **56–136** | |
 
 ## Total (one robot)

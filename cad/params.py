@@ -77,6 +77,33 @@ LIM_WAIST = (-0.45, 0.65)   # rad: - = flex belly-down, + = arch back up (hallow
 HEAD_ROLL_ACTUATED = False
 LIM_HEAD_PITCH = (-0.7, 0.7)  # rad: head pitch — nod + camera-pitch gimbal
 
+# --------------------------------------------------------------- skin (cad/parts/shell.py)
+# The skin is a REAL PRINTED PART, not preview geometry. It was neither: it exported as
+# shell_fore/aft/head.stl -- files anyone would print -- while carrying none of the
+# manifest's checks, and it had no opening for anything that has to pass through it. The
+# legs, the neck, the tail and the waist all shared solid material with it (the front
+# thigh alone by 1086 mm3), and shell.py's own comment claimed "a leg hole in the skin"
+# that the code never cut.
+#
+# Everything below is a CLEARANCE against something that MOVES, so it does not scale with
+# SCALE: a print gap is set by the printer and the bearing slop, not by how big the cat is.
+SKIN_CLEAR = 1.5        # gap between the skin and any limb sweeping through it (mm)
+SKIN_PORT_STEPS = 9     # poses sampled when sweeping a leg port
+SKIN_PORT_SLABS = 8     # z-slabs the thigh is proxied by (see shell._thigh_proxy)
+SKIN_RIM = 3.0          # material kept around a port so its edge is not a knife edge
+
+# Leg fairings — the cat's shoulder blade and haunch, which MOVE with the limb.
+# A static skin cannot close the flank: the knee servo lies laterally and reaches 46 mm
+# inboard of the thigh plane, which is inside the torso envelope (it is the same
+# protrusion that forces body.py's ribcage scallop), so as the hip sweeps it carves the
+# whole flank open. Only a cover that turns with the thigh can follow it -- which is what
+# a cat's scapula does, and why the fairing is a separate part rather than more skin.
+FAIRING_T = 1.6         # fairing wall (mm) — 4 perimeters at a 0.4 nozzle; it carries no load
+FAIRING_CLEAR = 1.2     # gap between a fairing and the limb it wraps (mm)
+FAIRING_OVERLAP = 6.0   # how far a fairing laps OVER the port rim, so no gap opens at gait angles
+FAIRING_SCREWS = 2      # inserts holding each fairing to its segment
+FAIRING_SCREW = "M2"    # ...and the thread they take
+
 # --------------------------------------------------------------- legs (4 DOF, digitigrade)
 # Per-leg segment lengths (mm) and the metatarsus (foot) pitch that gives the
 # digitigrade toe-stance. Rear limbs are longer + more angled than the fore.
