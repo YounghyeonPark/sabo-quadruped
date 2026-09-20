@@ -228,14 +228,13 @@ def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:
     from cad.parts.leg import _rounded_box
     from sim.gait import stance_angles
 
-    l, w, _ = SERVO.pocket
-    h = SERVO.pocket[2]
-    wall = P.HIP_BOSS_WALL
-    dx, dy, dz = l + 2 * wall, h + 2 * wall, w + 2 * wall
-    # the boss, in the thigh's frame: shaft on the crank axis, body inboard of it
-    cx = SERVO.shaft_offset
-    cz = -(P.leg_geom(leg)["upper"] - P.FOURBAR["ground"])
-    cy = -s * (P.FB_HORN_Y + dy / 2.0)
+    # ASK the leg for the boss rather than restating it. This block used to rebuild the
+    # housing from SERVO.pocket, and when the knee servo was turned to lie along the thigh
+    # the relief kept clearing the old orientation -- the thigh then shared 262 mm3 with
+    # the ribcage, in a part the interference suite had just passed.
+    from cad.parts.leg import knee_boss_envelope
+
+    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(P.leg_geom(leg)["upper"], s)
     boss = Pos(cx, cy, cz) * _rounded_box(dx + 2.0, dy + 2.0, dz + 2.0, 5.0)
 
     hip0, _ = stance_angles(leg)

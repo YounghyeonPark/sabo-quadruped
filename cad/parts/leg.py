@@ -273,14 +273,49 @@ def _servo_pack(px: float, pz: float, pivot_y: float, sign: int,
     return boss, cut
 
 
+# How the knee servo's housing is laid out. body.py has to carve the torso for the volume
+# this boss sweeps, and it used to restate the geometry from SERVO.pocket itself -- so when
+# the servo was turned to lie along the thigh, the ribcage relief kept clearing the old
+# orientation and the thigh started sharing 262 mm3 with it. One source now.
+# The 45 mm length runs FORE-AFT, and it is worth writing down why, because the reason
+# the code used to give is obsolete and the right one is not obvious.
+#
+# The old reason was to stay clear in Z of the HIP servo above it. That servo moved into
+# the torso core when the hip went remote-axle (params.HIP_DRIVE), so nothing has been
+# above the crank boss for a while.
+#
+# The real reason is the sweep. The hip carries this housing through the flank, and what
+# sets the width of the opening it needs is the housing's FURTHEST radius from the hip
+# axis -- the arc at that radius, not the arc at the pivot. Lying fore-aft, the boss
+# reaches r = 39 mm and sweeps a 37 mm arc. Turned to lie along the thigh it is narrower
+# across the sweep, which looks like the win, and it is not: its far end then sits at
+# r = 67 mm and sweeps 63 mm. Measured, that turn made the fore leg port BIGGER --
+# 8490 mm3 to 10712, x-span 76 mm to 87.
+KNEE_BOSS_LONG_AXIS = "x"      # fore-aft: keeps the housing's far corner close to the hip
+KNEE_BOSS_SHAFT_END = +1
+
+
+def knee_boss_envelope(length: float, sign: int) -> tuple[tuple, tuple]:
+    """(centre, (dx, dy, dz)) of the knee-servo housing, in the thigh's own frame."""
+    l, w, h = SERVO.pocket
+    wall = P.HIP_BOSS_WALL
+    dx, dz = ((l, w) if KNEE_BOSS_LONG_AXIS == "x" else (w, l))
+    ecc = SERVO.shaft_offset * KNEE_BOSS_SHAFT_END
+    ex, ez = (ecc, 0.0) if KNEE_BOSS_LONG_AXIS == "x" else (0.0, ecc)
+    dy = h + 2 * wall
+    z = -(length - P.FOURBAR["ground"])
+    return ((ex, -sign * (P.FB_HORN_Y + dy / 2.0), z + ez),
+            (dx + 2 * wall, dy, dz + 2 * wall))
+
+
 def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
     """Relocate the knee servo UP the thigh: a boss at ``ground`` mm above the knee
     housing the knee servo whose output IS the crank pivot (shaft on Y at the thigh
     centreline). The body is tucked INBOARD via ``_servo_pack`` so the crank boss no
-    longer juts ~21 mm past the joint plane. Its 45 mm length runs FORE-AFT (not down
-    the thigh), so its 24 mm width takes the vertical (Z) — that keeps the crank servo
-    clear (in Z) of the hip servo above it, which is now also tucked inboard in the
-    same Y band; both servos sharing the inboard band would otherwise collide."""
+    longer juts ~21 mm past the joint plane.
+
+    Its orientation is set by ``KNEE_BOSS_LONG_AXIS``; see the note there for why it
+    lies fore-aft, which is not the reason the code used to give."""
     z = -(length - P.FOURBAR["ground"])
     # shift the crank servo body ~6 mm DOWN the thigh (shaft stays on the crank pivot)
     # so its top clears the hip servo boss centred 29.5 mm above it.
@@ -289,7 +324,8 @@ def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
     # ``off=(0,-6)`` nudge in Z was not a motion a real servo can make. Its 42 mm depth
     # along the hip axis still reaches inboard past the torso flank, so the torso carries
     # a swept clearance for it (body.py :: _hip_sweep_relief) instead.
-    boss, cut = _servo_pack(0.0, z, -sign * P.FB_HORN_Y, sign, long_axis="x")
+    boss, cut = _servo_pack(0.0, z, -sign * P.FB_HORN_Y, sign,
+                            long_axis=KNEE_BOSS_LONG_AXIS, shaft_end=KNEE_BOSS_SHAFT_END)
     return strut + boss - cut
 
 
