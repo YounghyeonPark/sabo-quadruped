@@ -10,7 +10,12 @@ is not optional: it carries the openings the legs, the neck, the tail and the sp
 joint pass through, and it is in the mass budget. The **limb fairings**
 (`cad/parts/fairing.py`) are part of it — a static shell cannot close the flank,
 because the knee servo lies laterally and sweeps it open as the hip works, so the
-scapula and haunch covers bolt to the thighs and turn with them.
+covers bolt to the limbs and turn with them.
+
+They wrap the **bone only**, not the knee-servo housing. That is deliberate: 86% of
+the housing sits inboard of the skin line anyway, so sizing the cover around it
+doubled the leg (62 × 70 mm against 31 × 33) to hide 13.8 mm of hardware. The
+housing stays bare, and the leg keeps a cat's proportion.
 
 ---
 

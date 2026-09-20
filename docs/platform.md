@@ -19,7 +19,7 @@ niceties.
 ## Contributions
 
 1. **A cost/quietness/compliance point that is currently unserved at kitten scale.**
-   ~$834 mid BOM, 1565 g, backdrivable serial servos with torque-off silent hold.
+   ~$834 mid BOM, 1524 g, backdrivable serial servos with torque-off silent hold.
 2. **A limb architecture that keeps the leg light + quiet + the motors central:**
    a **proximal four-bar knee** (crank → pushrod → rocker, no cable friction) and a
    **remote-axle hip** (hip servos in the torso core, driven out to the pivot by a
@@ -36,7 +36,7 @@ niceties.
 
 | | |
 |---|---|
-| **Mass** | 1565 g (plastic 594 g + components 971 g) — target 0.8–1.6 kg |
+| **Mass** | 1524 g (plastic 553 g + components 971 g) — target 0.8–1.6 kg |
 | **Cost (BOM)** | $699 / **$834** / $968 (lo / mid / hi) |
 | **DOF** | 12 actuated; per leg = 2 motorized (hip, knee) + coupled ankle/hock + rigid abduction; 4 expressive (waist, head pan/pitch, tail) — ears rigid, camera roll by EIS |
 | **Actuator** | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial daisy-chain, **backdrivable** |
@@ -69,9 +69,9 @@ niceties.
 
 | Gait | Upright | Travel | Peak τ (% stall) | Headroom | Roll p-p | Cam shake |
 |---|:--:|--:|--:|--:|--:|--:|
-| stand | PASS | 0 cm | 14% | 86% | 0.0° | 0.0 / 0.0° |
-| walk | PASS | 7 cm | 43% | 57% | 3.2° | 3.2 / 1.1° |
-| trot | PASS | 40 cm | 36% | 64% | 2.9° | 3.9 / 1.3° |
+| stand | PASS | 0 cm | 13% | 87% | 0.0° | 0.0 / 0.0° |
+| walk | PASS | 8 cm | 43% | 57% | 3.0° | 3.0 / 1.1° |
+| trot | PASS | 41 cm | 35% | 65% | 3.0° | 3.9 / 1.3° |
 
 Plus: four-bar ROM/transmission-angle/monotonicity, remote-hip inertia reduction,
 DOF-sharing count — all from the model.

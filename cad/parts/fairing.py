@@ -67,10 +67,13 @@ def _seg_stations(leg: str, seg: str) -> list:
     h = (bb.max.Z - bb.min.Z) / WRAP_SLABS
     gap = P.FAIRING_CLEAR + P.FAIRING_T
 
+    keep_out = None if (COVER_KNEE_BOSS or seg != "upper") else _boss_box(leg)
     slabs = []
     for i in range(WRAP_SLABS):
         lo, hi = bb.min.Z + i * h, bb.min.Z + (i + 1) * h
         slab = part & (Pos(0, 0, (lo + hi) / 2) * Box(400, 400, hi - lo))
+        if keep_out is not None:
+            slab = slab - keep_out          # size to the BONE, not to the housing
         if slab.volume < 1.0:
             continue
         sb = slab.bounding_box()
@@ -163,6 +166,31 @@ def _seg_stations(leg: str, seg: str) -> list:
 CORNER_R = 17.0         # how round a section may get, capped per station
 CAP_RISE = 9.0          # how far a domed end reaches past the limb
 CAP_STATIONS = 2        # sections per dome, beyond the limb's own ends
+
+# Whether the thigh cover wraps the knee-servo housing as well as the bone. It does not.
+#
+# The housing is what made the leg thick: the cover came to 62 x 70 mm, and 45 of the 62
+# was the servo case. But 86% of that housing sits INBOARD of the skin line -- body |y|
+# 33.3 to 75.6, against a flank at 61.8 -- so nearly all of what the cover was being sized
+# for is already hidden inside the body. Sizing to the bone instead halves the leg,
+# 62 x 70 -> 31 x 33 mm, and leaves the housing's outboard 13.8 mm bare.
+#
+# Bare is the right answer here rather than a compromise. The skin is translucent by
+# intent and the frame reads through it everywhere else on the robot, so an exposed
+# housing is consistent with the rest; and the proportion it buys -- a plump body on slim
+# limbs -- is the cat proportion the whole shell exists to get.
+COVER_KNEE_BOSS = False
+
+
+def _boss_box(leg: str) -> Part:
+    """The knee-servo housing plus running clearance, in the thigh's frame."""
+    from build123d import Box
+    from cad.parts.leg import knee_boss_envelope
+
+    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(
+        P.leg_geom(leg)["upper"], P.leg_plane_sign(leg))
+    c = P.FAIRING_CLEAR
+    return Pos(cx, cy, cz) * Box(dx + 2 * c, dy + 2 * c, dz + 2 * c)
 
 
 def _loft_stations(stations, grow: float = 0.0) -> Part:
@@ -268,6 +296,8 @@ def _fairing(leg: str, seg: str, trim_torso: bool) -> Part:
     # read as two bolt-on drums with holes in them.
     inner = _loft_stations(st[CAP_STATIONS:-CAP_STATIONS], grow=-P.FAIRING_T)
     part = outer - inner
+    if not COVER_KNEE_BOSS and seg == "upper":
+        part = part - _boss_box(leg)        # the housing passes through the cover
     if trim_torso:
         for ko in _torso_keepouts(leg):
             part = part - ko
