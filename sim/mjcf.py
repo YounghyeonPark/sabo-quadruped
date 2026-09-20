@@ -19,7 +19,8 @@ import os
 from cad import params as P
 from cad.assembly import PRINTABLE, ROOT, kinematics
 from cad.servo import DEFAULT as SERVO
-from sim.meshes import MESH_DIR, SKIN_OVER, all_mesh_names, ensure_meshes
+from sim.meshes import (MESH_DIR, SKIN_OVER, all_mesh_names, ensure_meshes,
+                        skin_mass_kg)
 
 _DENS = P.EFFECTIVE_DENSITY
 FRAME_RGBA = "0.55 0.57 0.62 1"      # inner frame — solid grey
@@ -54,7 +55,7 @@ def _inertial(mass, center, size) -> str:
 
 
 def _link_mass(lk) -> float:
-    return lk.part.volume * 1e-9 * _DENS + lk.extra_mass
+    return lk.part.volume * 1e-9 * _DENS + lk.extra_mass + skin_mass_kg(lk.name)
 
 
 def build_mjcf(start_z: float | None = None) -> str:
@@ -101,7 +102,7 @@ def build_mjcf(start_z: float | None = None) -> str:
         return s
 
     fore_plastic = PRINTABLE["torso_fore"].volume * 1e-9 * _DENS
-    fore_mass = fore_plastic + _fore_electronics()
+    fore_mass = fore_plastic + _fore_electronics() + skin_mass_kg("torso_fore")
     fcenter, fsize = _bbox_m(PRINTABLE["torso_fore"])
 
     # real meshes (inner frame + skin case) for visual geoms; mm→m via scale.

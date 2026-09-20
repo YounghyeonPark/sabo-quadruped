@@ -9,7 +9,7 @@
 </p>
 <p align="center"><em>Left: the face — Ø100 head on a 180 mm body, baby-schema by intent and by
 actuator budget (it holds two of the twelve servos). Right: walk gait, CoM-tracked — torso
-roll ≈ 3.1° p-p.</em></p>
+roll ≈ 3.0° p-p.</em></p>
 
 Sabo is a kitten-scale (**~1.31 kg**) quadruped platform: **fully 3D-printed**, driven by
 cheap **serial-bus servos**, and designed to be **quiet** and **backdrivable** enough to
@@ -84,9 +84,9 @@ Gait benchmark (MuJoCo):
 
 | Gait | Upright | Travel | Peak torque (% of stall) | Torso roll p-p |
 |---|:--:|--:|--:|--:|
-| stand | ✓ | — | 12 % | 0.0° |
-| walk | ✓ | 8 cm | 40 % | 3.1° |
-| trot | ✓ | 39 cm | 34 % | 3.4° |
+| stand | ✓ | — | 13 % | 0.0° |
+| walk | ✓ | 8 cm | 43 % | 3.0° |
+| trot | ✓ | 41 cm | 35 % | 3.0° |
 
 > Hardware-measured metrics (acoustic dB, backlash, backdrive torque, battery runtime,
 > sim-to-real gap) are **TBD** — pending the physical build (see

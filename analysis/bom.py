@@ -73,23 +73,23 @@ ONE_TIME_TOOLS = [
 
 
 def _printed_grams() -> float:
-    """Frame plastic from the CAD manifest + the cosmetic skin, with waste."""
-    frame = 0.0
+    """Every printed gram in the robot, from the CAD manifest, plus waste.
+
+    This used to add the shells on top of the manifest total, because the skin was
+    exported as STL but sat outside ``cad.assembly.PRINTABLE`` and so never reached the
+    manifest. It is a real part now and the manifest counts it, so adding it again here
+    would double-count ~124 g of filament.
+
+    ``waist_collar`` is deliberately not counted either way: it is a cosmetic band that
+    ``full_cat`` fuses across the spine seam for the preview render, and printing it would
+    weld the waist joint shut.
+    """
     mpath = os.path.join(os.path.dirname(__file__), "..", "cad", "out", "parts_manifest.json")
     try:
-        frame = json.load(open(mpath))["totals"]["printed_plastic_g"]
+        printed = json.load(open(mpath))["totals"]["printed_plastic_g"]
     except Exception:
-        frame = 275.0
-    skin = 0.0
-    try:
-        from cad.parts.shell import (body_shell_aft, body_shell_fore, head_shell,
-                                     waist_collar)
-        for part, n in ((body_shell_fore(), 1), (body_shell_aft(), 1),
-                        (head_shell(), 1), (waist_collar(), 1)):
-            skin += part.volume * 1e-9 * P.EFFECTIVE_DENSITY * 1000.0
-    except Exception:
-        skin = 150.0
-    return (frame + skin) * PRINT_WASTE
+        printed = 543.0
+    return printed * PRINT_WASTE
 
 
 def _hardware_cost() -> tuple[float, float]:

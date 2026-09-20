@@ -69,9 +69,9 @@ niceties.
 
 | Gait | Upright | Travel | Peak τ (% stall) | Headroom | Roll p-p | Cam shake |
 |---|:--:|--:|--:|--:|--:|--:|
-| stand | PASS | 0 cm | 12% | 88% | 0.0° | 0.0 / 0.1° |
-| walk | PASS | 11 cm | 44% | 56% | 2.5° | 1.8 / 0.5° |
-| trot | PASS | 48 cm | 35% | 65% | 3.1° | 3.8 / 1.3° |
+| stand | PASS | 0 cm | 13% | 87% | 0.0° | 0.0 / 0.0° |
+| walk | PASS | 8 cm | 43% | 57% | 3.0° | 3.0 / 1.1° |
+| trot | PASS | 41 cm | 35% | 65% | 3.0° | 3.9 / 1.4° |
 
 Plus: four-bar ROM/transmission-angle/monotonicity, remote-hip inertia reduction,
 DOF-sharing count — all from the model.
