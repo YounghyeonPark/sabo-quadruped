@@ -144,6 +144,8 @@ def build_benchmark() -> dict:
         },
         "remote_axle_hip": {
             "lateral_inertia_reduction_pct": tx["remote_axle_hip"]["inertia_reduction_pct"],
+            "all_leg_servos_reduction_pct":
+                tx["remote_axle_hip"]["all_leg_servos_reduction_pct"],
         },
     }
     dofs = dof_sharing()
@@ -192,8 +194,10 @@ def render_markdown(b: dict) -> str:
       f"{fbk['transmission_angle_deg'][1]:.0f}° "
       f"({'singularity-free' if fbk['singularity_free'] else 'RISK'}) |")
     w(f"| Four-bar monotonic / invertible | {fbk['monotonic_invertible']} |")
-    w(f"| Remote-axle hip lateral-inertia reduction | "
+    w(f"| Remote-axle hip lateral-inertia reduction (hip servos) | "
       f"{hip['lateral_inertia_reduction_pct']:.0f}% |")
+    w(f"| ...counting all 8 leg servos (knee servos stay on the thighs) | "
+      f"{hip['all_leg_servos_reduction_pct']:.0f}% |")
     w("")
 
     w("## DOF-sharing (design efficiency)\n")

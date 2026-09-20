@@ -53,7 +53,10 @@ niceties.
   reachable knee: front 23.7–152.3°, rear 35.4–164.0° (cat-correct fore < hind fold).
   Verified as a closed loop in MuJoCo (held to 0.16 mm) and as CAD parts on the leg.
 - **Remote-axle hip**: hip servos relocated to the torso core, driven to the pivot by
-  a Ø6 axle in bearings → per-hip lateral inertia **16.46 → 1.16 ×10⁻⁴ kg·m² (−93%)**;
+  a Ø6 axle in bearings → per-hip lateral inertia **16.46 → 1.16 ×10⁻⁴ kg·m² (−93%)**.
+  That figure is scoped to the **four hip servos**. The four knee servos did not move —
+  each still rides its thigh at the same hip line — so across all eight leg servos it is
+  **32.92 → 17.62 ×10⁻⁴ kg·m² (−46%)**;
   shoulder skin de-flared 81 → 62 mm half-width.
 - **Coupled underactuation**: ankle/hock mechanically coupled to the knee (cat
   reciprocal apparatus) + rigid abduction → 2 motors/leg instead of 3–4, at the cost

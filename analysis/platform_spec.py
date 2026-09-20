@@ -184,9 +184,16 @@ def transmission_summary() -> dict:
         per_leg[kind] = {"knee_reach_deg": [round(math.degrees(min(k_lo, k_hi)), 1),
                                             round(math.degrees(max(k_lo, k_hi)), 1)]}
 
-    # remote-axle hip: lateral (roll-axis) inertia of the 4 hip-servo masses, servo
+    # remote-axle hip: lateral (roll-axis) inertia of the 4 HIP-servo masses, servo
     # BODY out on the leg vs relocated into the torso core (validate.check_balance
     # places the relocated body at |y| = HIP_CORE_HORN_Y - 18).
+    #
+    # The whole-leg figure is reported beside it, and it has to be, because the
+    # hip-scoped one is easy to over-read. "Motors relocated to the torso" sounds like
+    # all eight leg servos; four of them did not move. Each leg still carries its KNEE
+    # servo, at the same |y| the hip servo used to sit at, so counting what a reader
+    # thinks is being counted gives -46%, not -93%. Both numbers are true of what they
+    # measure; only one of them answers "how much lighter is the leg, laterally".
     m = SERVO.mass_kg
     y_leg_f = P.m(P.BODY_W / 2 + P.FRONT["hip_off"])
     y_leg_r = P.m(P.BODY_W / 2 + P.REAR["hip_off"])
@@ -194,6 +201,9 @@ def transmission_summary() -> dict:
     I_leg = 2 * m * y_leg_f ** 2 + 2 * m * y_leg_r ** 2
     I_core = 4 * m * y_core ** 2
     reduction = 100.0 * (1 - I_core / I_leg)
+    I_knee = I_leg                       # the knee servos, still out at the hip line
+    all_before, all_after = I_leg + I_knee, I_core + I_knee
+    reduction_all = 100.0 * (1 - all_after / all_before)
 
     return {
         "four_bar_knee": {
@@ -212,6 +222,10 @@ def transmission_summary() -> dict:
             "core_horn_y_mm": P.HIP_CORE_HORN_Y,
             "lateral_inertia_leg_kgm2": I_leg, "lateral_inertia_core_kgm2": I_core,
             "inertia_reduction_pct": round(reduction, 1),
+            "scope": "the 4 hip servos only; the 4 knee servos stay on the thighs",
+            "all_leg_servos_before_kgm2": all_before,
+            "all_leg_servos_after_kgm2": all_after,
+            "all_leg_servos_reduction_pct": round(reduction_all, 1),
         },
     }
 
@@ -339,6 +353,13 @@ def render_markdown(spec: dict) -> str:
       f"×10⁻⁴ kg·m² → **{hip['inertia_reduction_pct']:.0f}% reduction** "
       f"(body relocated from |y|≈{P.BODY_W/2+P.FRONT['hip_off']:.0f} mm to "
       f"|y|≈{hip['core_horn_y_mm']-18:.0f} mm)\n")
+    w(f"- **Counting all 8 leg servos** (the 4 knee servos did NOT move - each still "
+      f"rides its thigh at the hip line): "
+      f"{hip['all_leg_servos_before_kgm2']*1e4:.2f} -> "
+      f"{hip['all_leg_servos_after_kgm2']*1e4:.2f} x10^-4 kg.m2 -> "
+      f"**{hip['all_leg_servos_reduction_pct']:.0f}%**. Quote whichever answers the "
+      f"question being asked; the headline figure is scoped to the hip drive alone.")
+
     return "\n".join(L)
 
 

@@ -39,7 +39,7 @@ backdrivable + sub-1 kg** at once.
   there is: the hips from the torso core, the knees from up the thigh, the tail and the
   head's yaw from the body. `analysis/actuator_fit.py` is what decides.
 - **A limb architecture for cheap compliance** — a **proximal four-bar knee** (cable-free,
-  light shank), a **remote-axle hip** (servos in the torso → −93 % hip lateral inertia),
+  light shank), a **remote-axle hip** (the hip servos in the torso → −93 % of *their* lateral inertia, −46 % across all 8 leg servos),
   and **coupled underactuation** (2 motors/leg).
 - **Buildable, not just drawable** — every pivot is a **clevis in double shear** and the
   thigh is a channel the whole four-bar runs inside, so no two printed parts share solid.
@@ -76,7 +76,7 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 | Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
 | Compute | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W |
 | Four-bar knee | 128° ROM, 41–140° transmission angle (singularity-free) |
-| Remote-axle hip | **−93 %** hip lateral inertia (motors relocated to the torso) |
+| Remote-axle hip | **−93 %** lateral inertia of the **hip** servos (−46 % counting all 8 leg servos — the knee servos stay on the thighs) |
 | Envelope | 352 × 201 × 197 mm |
 | Viable scale range | **k ≈ 0.7–1.5** (body 126–270 mm) — the fixed actuator sets the window |
 
