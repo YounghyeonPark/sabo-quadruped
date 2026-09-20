@@ -25,10 +25,13 @@ Building the hollow as *solid minus an inset solid* (rather than build123d's
 
 from __future__ import annotations
 
-from build123d import (BuildPart, BuildSketch, Cylinder, Ellipse, Part, Plane,
+import math
+
+from build123d import (Box, BuildPart, BuildSketch, Cylinder, Ellipse, Part, Plane,
                        Pos, Rot, Sphere, loft, scale)
 
 from cad import params as P
+from cad.servo import DEFAULT as SERVO
 
 # --------------------------------------------------------------------------- body
 # Elliptical loft stations: (x_along_body, half_width_y, half_height_z). The y/z
@@ -123,16 +126,195 @@ def _hollow(outer_stations, t: float, waist_extend: float, cutters=None) -> Part
     return shell
 
 
-def body_shell_fore() -> Part:
-    # waist(0) -> chest(full) -> shoulder -> neck(taper). Hollow skin + Jetson bay.
-    return _hollow(FORE_STATIONS, P.SHELL_T, waist_extend=-8,
-                   cutters=_jetson_bay(P.SHELL_T))
+# --------------------------------------------------------------------- openings
+# Everything that has to pass through the skin gets a real opening, and each one is cut
+# from the REAL swept volume of the thing that passes through it -- the rule body.py
+# already uses for its ribcage scallops, and for the same reason: a bounding disc either
+# gapes or binds.
+#
+# Until now the only cutters here were the Jetson and battery bays. The legs, the neck,
+# the tail and the waist had no opening at all, so they simply shared solid material with
+# the skin -- the front thigh by 1086 mm3, the aft frame by 4608 -- while a comment at the
+# top of this file claimed "a leg hole in the skin" that no code ever cut.
+
+_PORT_CACHE: dict[str, Part] = {}
 
 
-def body_shell_aft() -> Part:
-    # waist(0) -> haunch(fullest) -> hip -> tail base(taper). Hollow skin + battery bay.
-    return _hollow(AFT_STATIONS, P.SHELL_T, waist_extend=+8,
-                   cutters=_battery_bay())
+def _hip_frame(leg: str, hip: float):
+    """The thigh's transform in the torso frame at hip angle ``hip`` (rad).
+
+    Written out rather than imported from ``cad.assembly`` so the skin does not depend on
+    the assembly module, which imports every part in the robot.
+    """
+    mx, my = P.MOUNTS[leg]
+    s = P.leg_plane_sign(leg)
+    return Pos(mx, my + s * P.leg_geom(leg)["hip_off"], 0) * Rot(0, -math.degrees(hip), 0)
+
+
+def _thigh_proxy(leg: str) -> Part:
+    """A slab-wise stand-in for the thigh, cheap enough to sweep.
+
+    The thigh itself cannot be swept. Fusing nine copies of it -- fenestrae, servo pocket,
+    channel and all -- exhausted memory outright, and when a smaller version of the same
+    fuse did return, OCCT handed back an intersection of 413 mm3 against a skin that a
+    SINGLE pose already shared 1086 mm3 with: a boolean reporting less overlap than one of
+    its own inputs has failed silently. So the thigh is reduced first.
+
+    One bounding box would be the obvious stand-in and it is a bad one -- 9x the thigh's
+    real volume, because the thigh is an L of slim bone strut plus a fat lateral servo
+    pack -- and it opens the fore flank by 18%. Slicing into z-slabs and taking each
+    slab's own box halves that while keeping the port's outline following the leg.
+    """
+    from cad.parts.leg import leg_parts
+
+    th = leg_parts(leg)["upper"]
+    bb = th.bounding_box()
+    h = (bb.max.Z - bb.min.Z) / P.SKIN_PORT_SLABS
+    c = P.SKIN_CLEAR
+    proxy = None
+    for i in range(P.SKIN_PORT_SLABS):
+        a, b = bb.min.Z + i * h, bb.min.Z + (i + 1) * h
+        slab = th & (Pos(0, 0, (a + b) / 2) * Box(400, 400, b - a))
+        if slab.volume < 1.0:
+            continue
+        sb = slab.bounding_box()
+        box = Pos(sb.center().X, sb.center().Y, (a + b) / 2) * Box(
+            sb.size.X + 2 * c, sb.size.Y + 2 * c, (b - a) + 2 * c)
+        proxy = box if proxy is None else proxy + box
+    return proxy
+
+
+def _leg_port(leg: str) -> Part:
+    """The opening the leg swings through, swept over the hip's real working window.
+
+    The window is ``body.hip_work_range`` -- read from the motion library, asymmetric,
+    and the same window the ribcage is scalloped to, so the skin and the frame cannot
+    disagree about how far the leg goes.
+    """
+    hit = _PORT_CACHE.get(leg)
+    if hit is not None:
+        return hit
+
+    from cad.parts.body import hip_work_range
+    from sim.gait import stance_angles
+
+    proxy = _thigh_proxy(leg)
+    hip0 = stance_angles(leg)[0]
+    lo, hi = hip_work_range(leg)
+    n = P.SKIN_PORT_STEPS
+    port = None
+    for i in range(n):
+        posed = _hip_frame(leg, hip0 + lo + (hi - lo) * i / (n - 1)) * proxy
+        port = posed if port is None else port + posed
+    _PORT_CACHE[leg] = port
+    return port
+
+
+NECK_MOUTH_X = 87.0 * P.SCALE      # the skin ends here and the neck comes out
+
+
+def _neck_port() -> Part:
+    """Where the neck column passes out through the front of the chest.
+
+    The column already publishes its real swept volume for the ribcage to be hollowed by,
+    so the skin reuses it rather than inventing a second, disagreeing estimate.
+
+    ``head_sweep`` is deliberately NOT unioned in. The head is a separate shell that lives
+    forward of and above this one, and cutting its 421 000 mm3 of sweep out of the chest
+    took the whole front off and left the fore skin in 29 pieces. What the chest owes the
+    head is a mouth, not a cavity.
+
+    The sweep alone leaves a ragged rim -- a 9 mm3 chip of skin was surviving above the
+    opening, unattached to anything -- so the taper ahead of ``NECK_MOUTH_X`` goes with it
+    and the skin ends in a clean rim instead.
+    """
+    from cad.parts.neck import neck_sweep
+
+    a = max(a for _x, a, _b in FORE_STATIONS)
+    b = max(b for _x, _a, b in FORE_STATIONS)
+    mouth = Pos(NECK_MOUTH_X + a, 0, 0) * Box(2 * a, 2 * (a + 10.0), 2 * (b + 10.0))
+    return neck_sweep() + mouth
+
+
+TAIL_MOUTH_X = 84.0 * P.SCALE      # the skin ends here and the tail comes out
+
+
+def _tail_port() -> Part:
+    """Where the tail exits the rump, swept over its joint range.
+
+    The tail pivots at ``(-AFT_LEN, 0, BODY_H/4)`` about -y over LIM_TAIL (cad.assembly's
+    link table is the authority on both), so the port is that arc, not a hole at neutral.
+    """
+    from cad.parts.tail import tail as tail_part
+
+    piv = Pos(-P.AFT_LEN, 0, P.BODY_H / 4)
+    t = tail_part()
+    lo, hi = getattr(P, "LIM_TAIL", (-1.0, 1.0))
+    n = 7
+    port = None
+    for i in range(n):
+        ang = lo + (hi - lo) * i / (n - 1)
+        posed = piv * (Rot(0, -math.degrees(ang), 0) * t)
+        port = posed if port is None else port + posed
+
+    # ...and the rump ends in a clean rim, for the same reason the neck does: the sweep
+    # passes BEHIND the skin's last two stations rather than through them, so on its own
+    # it left the tail cap standing as a separate 7012 mm3 solid with nothing holding it.
+    a = max(a for _x, a, _b in AFT_STATIONS)
+    b = max(b for _x, _a, b in AFT_STATIONS)
+    return port + Pos(-(TAIL_MOUTH_X + a), 0, 0) * Box(
+        2 * a, 2 * (a + 10.0), 2 * (b + 10.0))
+
+
+WAIST_SEAM = 20.0 * P.SCALE        # half-width of the band the spine joint lives in
+WAIST_BELLY_OPEN = 12.0 * P.SCALE  # how far ABOVE the belly line the notch reaches
+
+
+def _waist_port(aft: bool) -> Part:
+    """The belly opening at the spine seam.
+
+    Two things need it. The waist servo's boss straddles the seam and hangs below the
+    skin's belly line -- it was sharing 559 mm3 with the aft skin -- and the joint has to
+    FOLD through LIM_WAIST, which it cannot do through a closed belly.
+
+    Getting the cutter right took three tries and both failures are worth keeping. The
+    whole frame is the obvious cutter and it is far too blunt: the ribs and stringers
+    reach the skin's inner wall by design, so subtracting the frame punched the wall out
+    everywhere they touch and left the fore skin in 29 pieces. Clipping that same
+    subtraction to the seam band was better and still wrong -- it left chips of 154 and
+    22 mm3 standing loose, which a printed part cannot have. A plain notch cuts cleanly,
+    and it is sized from the servo pocket so it tracks the actuator rather than a number
+    typed in once.
+    """
+    _l, w, _h = SERVO.pocket
+    st = AFT_STATIONS if aft else FORE_STATIONS
+    # the SEAM station's half-height, not the loft's deepest: the notch belongs at the
+    # belly the joint actually folds through, and taking the maximum put it 18 mm lower
+    # than the skin, where it cut a bite out of the chest and missed the boss entirely.
+    b = st[0][2]
+    dy = w + 6.0 + 2 * P.SKIN_CLEAR          # the boss straddling the seam, plus clearance
+    dz = WAIST_BELLY_OPEN + 20.0
+    return Pos(0, 0, -(b + 20.0 - dz / 2)) * Box(2 * WAIST_SEAM, dy + 20.0, dz)
+
+
+def body_shell_fore(ports: bool = True) -> Part:
+    """waist(0) -> chest(full) -> shoulder -> neck(taper). Hollow skin + Jetson bay.
+
+    ``ports=False`` returns the bare loft, which is what the port cutters are measured
+    against; nothing else should ask for it.
+    """
+    cut = _jetson_bay(P.SHELL_T)
+    if ports:
+        cut = cut + _leg_port("FL") + _leg_port("FR") + _neck_port() + _waist_port(False)
+    return _hollow(FORE_STATIONS, P.SHELL_T, waist_extend=-8, cutters=cut)
+
+
+def body_shell_aft(ports: bool = True) -> Part:
+    """waist(0) -> haunch(fullest) -> hip -> tail base(taper). Hollow skin + battery bay."""
+    cut = _battery_bay()
+    if ports:
+        cut = cut + _leg_port("RL") + _leg_port("RR") + _tail_port() + _waist_port(True)
+    return _hollow(AFT_STATIONS, P.SHELL_T, waist_extend=+8, cutters=cut)
 
 
 # --------------------------------------------------------------------------- head

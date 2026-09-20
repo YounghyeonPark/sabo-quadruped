@@ -143,12 +143,74 @@ def _core_hip_drive(mx: float, s: int) -> Part:
 
 
 # How far either side of its stance angle the hip actually works. The joint LIMIT is
-# +-2.6 rad, but nothing drives it there: the gaits and the cat-motion poses stay inside
-# this, and clearing the full limit would mean carving a Ø94 disc out of the ribcage at
-# every hip -- which is exactly what an earlier version of this function did, and it cut
-# the ribcage into loose pieces.
-HIP_WORK_RANGE = 0.65      # rad either side of stance
+# +-2.6 rad, but nothing drives it there, and clearing the full limit would mean carving
+# a Ø94 disc out of the ribcage at every hip -- which is exactly what an earlier version
+# of this function did, and it cut the ribcage into loose pieces.
+#
+# This used to be a hand-set +-0.65 rad carrying the claim that "the gaits and the
+# cat-motion poses stay inside this". They did not. The SIT pose folds the REAR hip 59.6
+# deg back, well past 37.2, and the scallop cut for the smaller number left the rear
+# thigh sharing 238 mm3 of solid with the aft ribcage -- a pose in the demo sequence that
+# the model cannot actually strike. Nothing caught it because the interference suite only
+# ever posed the legs at STANCE.
+#
+# A constant cannot track a motion library that keeps growing, so the range is READ from
+# that library: every gait preset, every gesture, and every pounce keyframe (plus the
+# eased interpolation between them) is run through the same IK the emulator uses. The
+# window is per-leg and ASYMMETRIC because the motion is -- the front hip works
+# -23/+19 deg and the rear -60/+15 -- so deriving it both fixes the rear and hands the
+# front ribcage back the material a symmetric +-37 deg was needlessly cutting away.
 HIP_SWEEP_STEPS = 9
+HIP_SWEEP_MARGIN = math.radians(6.0)   # headroom past the furthest commanded pose
+
+
+def hip_work_range(leg: str) -> tuple[float, float]:
+    """(lo, hi) rad about stance that the hip is really driven through, + a margin."""
+    cached = _HIP_RANGE_CACHE.get(leg)
+    if cached is not None:
+        return cached
+
+    from sim import cute_motion as CM
+    from sim.gait import (PRESETS, foot_target, leg_depth, leg_ik, stance_angles)
+
+    hip0 = stance_angles(leg)[0]
+    d0 = leg_depth(leg)
+    key = "front" if leg[0] == "F" else "rear"
+    lo = hi = 0.0
+
+    def note(tgt):
+        nonlocal lo, hi
+        try:
+            v = leg_ik(leg, tgt.get(f"{key}_tuck", 0.0),
+                       d0 * tgt.get(f"{key}_depth", 1.0))[0] - hip0
+        except Exception:      # a keyframe the IK cannot reach is not a pose we can hold
+            return
+        lo, hi = min(lo, v), max(hi, v)
+
+    for fn, _dur in CM.GESTURES.values():
+        for i in range(61):
+            note(fn(i / 60.0))
+
+    jc = CM.JumpController()
+    keys = [jc._stand(), jc._crouch(), jc._extend(), jc._reach(), jc._absorb()]
+    for a, b in zip(keys, keys[1:] + keys[:1]):
+        for i in range(21):
+            note(CM._lerp_targets(a, b, i / 20.0))
+
+    for preset in PRESETS.values():
+        for i in range(72):
+            try:
+                v = leg_ik(leg, *foot_target(leg, i / 72.0, preset, d0))[0] - hip0
+            except Exception:
+                continue
+            lo, hi = min(lo, v), max(hi, v)
+
+    out = (lo - HIP_SWEEP_MARGIN, hi + HIP_SWEEP_MARGIN)
+    _HIP_RANGE_CACHE[leg] = out
+    return out
+
+
+_HIP_RANGE_CACHE: dict[str, tuple[float, float]] = {}
 
 
 def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:
@@ -177,10 +239,11 @@ def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:
     boss = Pos(cx, cy, cz) * _rounded_box(dx + 2.0, dy + 2.0, dz + 2.0, 5.0)
 
     hip0, _ = stance_angles(leg)
+    lo, hi = hip_work_range(leg)
     void = None
     for i in range(HIP_SWEEP_STEPS):
-        t = -1.0 + 2.0 * i / (HIP_SWEEP_STEPS - 1)
-        ang = hip0 + t * HIP_WORK_RANGE
+        t = i / (HIP_SWEEP_STEPS - 1)
+        ang = hip0 + lo + t * (hi - lo)
         posed = Rot(0, -math.degrees(ang), 0) * boss
         void = posed if void is None else void + posed
     # The thigh hangs off the MOUNT, at |y| = BODY_W/2, and the hip is hip_off further out

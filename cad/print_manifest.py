@@ -76,16 +76,20 @@ PRINT_META: dict[str, dict] = {
     # ---- leg: bone struts ----------------------------------------------------
     "upper_F": dict(orient="strut axis flat on bed; crank-servo pocket up",
                     support=True, split="no", material="PETG", perimeters=4, infill=0.30,
-                    inserts=4, notes="carries knee servo (crank boss); 4x M2 hip-horn inserts"),
+                    inserts=6, notes="carries knee servo (crank boss); 4x M2 hip-horn "
+                          "inserts + 2x M2 for the thigh fairing"),
     "upper_R": dict(orient="strut axis flat on bed; crank-servo pocket up",
                     support=True, split="no", material="PETG", perimeters=4, infill=0.30,
-                    inserts=4, notes="carries knee servo (crank boss); 4x M2 hip-horn inserts"),
+                    inserts=6, notes="carries knee servo (crank boss); 4x M2 hip-horn "
+                          "inserts + 2x M2 for the thigh fairing"),
     "lower_F": dict(orient="strut axis flat on bed; rocker + pin seats sideways",
                     support=False, split="no", material="PETG", perimeters=4, infill=0.30,
-                    inserts=0, notes="welded rocker; passive knee + ankle pins (e-clip seats)"),
+                    inserts=2, notes="welded rocker; passive knee + ankle pins (e-clip "
+                          "seats); 2x M2 for the shank fairing, below the knee blade"),
     "lower_R": dict(orient="strut axis flat on bed; rocker + pin seats sideways",
                     support=False, split="no", material="PETG", perimeters=4, infill=0.30,
-                    inserts=0, notes="welded rocker; passive knee + ankle pins (e-clip seats)"),
+                    inserts=2, notes="welded rocker; passive knee + ankle pins (e-clip "
+                          "seats); 2x M2 for the shank fairing, below the knee blade"),
     "foot_F": dict(orient="lay on side; paw pad off the bed",
                    support=True, split="no", material="PETG", perimeters=3, infill=0.30,
                    inserts=0, notes="paw pad ideal in TPU (grip); passive ankle pin seat"),
@@ -99,6 +103,46 @@ PRINT_META: dict[str, dict] = {
     "crank_R": dict(orient="flat on bed (link plane down) — no support",
                     support=False, split="no", material="PETG", perimeters=4, infill=0.60,
                     inserts=4, notes="knee torque path; 4x M2 horn inserts + centre horn screw"),
+    # ---- skin (cad/parts/shell.py) -------------------------------------------
+    # Real parts as of the port work. They were exported as STL all along but sat outside
+    # PRINTABLE, so nothing checked them -- and nothing noticed the legs, neck, tail and
+    # waist all shared solid material with them.
+    "shell_fore": dict(
+        orient="body axis (X) vertical, waist rim on bed; leg ports face out",
+        support=True, split="recommended: sagittal L/R — the flanks overhang the ports",
+        material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="2.4 mm skin; leg ports + neck mouth + belly notch at the spine seam; "
+              "bolts to the ribcage through the frame's own pads (no inserts of its own)"),
+    "shell_aft": dict(
+        orient="body axis (X) vertical, waist rim on bed; belly/battery bay out",
+        support=True, split="recommended: sagittal L/R — the haunch overhangs the ports",
+        material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="2.4 mm skin; leg ports + tail mouth + belly notch at the spine seam"),
+    "shell_head": dict(
+        orient="neck mouth down, muzzle up",
+        support=True, split="recommended: horizontal equator split (2 bowls, bond)",
+        material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="2.4 mm skin; eye/cam apertures, nose + mouth grilles, mic ports"),
+    # ---- limb fairings (cad/parts/fairing.py) --------------------------------
+    # The moving half of the skin: a static shell cannot close the flank the laterally-
+    # mounted knee servo sweeps open, so these turn with the limb instead.
+    "fair_upper_F": dict(
+        orient="open side down on the bed — the cavity is the support",
+        support=False, split="no", material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="scapula cover over the thigh + knee servo; 2x M2 screws into the thigh's "
+              "inserts (counterbored flush); trimmed clear of the torso across the hip window"),
+    "fair_upper_R": dict(
+        orient="open side down on the bed — the cavity is the support",
+        support=False, split="no", material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="haunch cover over the thigh + knee servo; 2x M2 screws into the thigh"),
+    "fair_lower_F": dict(
+        orient="open side down on the bed — the cavity is the support",
+        support=False, split="no", material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="slim shank cover; 2x M2 screws into the shank below the knee blade"),
+    "fair_lower_R": dict(
+        orient="open side down on the bed — the cavity is the support",
+        support=False, split="no", material="PLA", perimeters=2, infill=0.08, inserts=0,
+        notes="slim shank cover; 2x M2 screws into the shank below the knee blade"),
     "pushrod_F": dict(orient="flat on bed (link plane down) — no support",
                       support=False, split="no", material="PETG", perimeters=4, infill=0.60,
                       inserts=0, notes="rigid coupler; Ø3 rotating pins + bearing counterbores"),

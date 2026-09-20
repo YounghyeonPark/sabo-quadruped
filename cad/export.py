@@ -41,6 +41,8 @@ COUNTS = {
     "crank_F": 2, "crank_R": 2, "pushrod_F": 2, "pushrod_R": 2,
     "tail_crank": 1, "tail_pushrod": 1,
     "neck_column": 1, "pan_crank": 1, "pan_pushrod": 1,
+    "shell_fore": 1, "shell_aft": 1, "shell_head": 1,
+    "fair_upper_F": 2, "fair_lower_F": 2, "fair_upper_R": 2, "fair_lower_R": 2,
 }
 
 
@@ -152,11 +154,10 @@ def main() -> None:
     _render(full_stl, os.path.join(OUT, "preview_iso.png"), elev=22, azim=-58)
     _render(full_stl, os.path.join(OUT, "preview_side.png"), elev=6, azim=-90)
 
-    # cosmetic cat shell (the organic outer shape) + cat renders
-    from cad.parts.shell import body_shell_aft, body_shell_fore, full_cat, head_shell
-    for name, part in (("shell_fore", body_shell_fore()), ("shell_aft", body_shell_aft()),
-                       ("shell_head", head_shell())):
-        export_stl(part, os.path.join(OUT, f"{name}.stl"))
+    # the cat silhouette preview. The shells themselves are exported by the PRINTABLE
+    # loop above now that they are real parts -- they used to be written only here, which
+    # is how they escaped the manifest's checks for as long as they did.
+    from cad.parts.shell import full_cat
     # hip drive AXLES (remote-axle hip drive): a lateral shaft per leg from the core
     # servo horn out to the hip pivot. Steel/CF rod + printed horn hubs, so — like the
     # four-bar pins + split dowels — NOT in the plastic mass budget; exported here for

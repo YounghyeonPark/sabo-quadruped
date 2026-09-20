@@ -346,3 +346,136 @@ def test_every_printed_part_is_one_solid():
             broken[name] = len(real)
     assert not broken, "parts that are not a single solid: " + ", ".join(
         f"{k} ({v} pieces)" for k, v in sorted(broken.items()))
+
+
+# --------------------------------------------------------------- the skin as a real part
+@pytest.fixture(scope="session")
+def skins():
+    from cad.parts.shell import body_shell_aft, body_shell_fore
+    return {"fore": body_shell_fore(), "aft": body_shell_aft()}
+
+
+def _hip_window_poses(leg, n=7):
+    """(hip, knee) samples across the hip's real working window, at stance knee."""
+    from cad.parts.body import hip_work_range
+    from sim.gait import stance_angles
+
+    hip0, knee = stance_angles(leg)
+    lo, hi = hip_work_range(leg)
+    return [(hip0 + lo + (hi - lo) * i / (n - 1), knee) for i in range(n)]
+
+
+def test_the_skin_has_an_opening_for_everything_that_passes_through_it(skins):
+    """A leg hole that exists only in a comment is exactly what this guards.
+
+    shell.py carried the line "the legs ... exit through the hip line (a leg hole in the
+    skin)" while its only cutters were the Jetson bay and the battery bay. There was no
+    hole. The legs, the neck, the tail and the waist just shared solid material with the
+    skin, and because the shells sat outside PRINTABLE nothing ever compared them to
+    anything. Measuring the ported shell against the bare loft keeps the claim honest.
+    """
+    from cad.parts.shell import body_shell_aft, body_shell_fore
+
+    for tag, fn in (("fore", body_shell_fore), ("aft", body_shell_aft)):
+        bare = fn(ports=False).volume
+        ported = skins[tag].volume
+        assert ported < bare - 1000.0, (
+            f"{tag} skin is {ported:.0f} mm^3 against a bare loft of {bare:.0f} — its "
+            f"ports are not cutting anything")
+
+
+def test_the_skin_clears_the_frame_it_covers(skins):
+    """The skin and the ribcage are drawn from two different station tables. Where they
+    disagreed the frame simply grew out through the wall — 4608 mm^3 of it on the aft
+    half, at the tail and the waist."""
+    from cad.parts.body import torso_aft, torso_fore
+
+    for tag, frame in (("fore", torso_fore()), ("aft", torso_aft())):
+        v = (frame & skins[tag]).volume
+        assert v <= NOISE_MM3, f"torso_{tag} pushes {v:.0f} mm^3 through its own skin"
+
+
+def test_the_skin_clears_the_legs_through_the_whole_hip_window(skins):
+    """Not just at stance. The knee servo lies laterally and sweeps the flank, so the
+    clearance has to hold at every hip angle the motion library commands."""
+    from cad.parts.leg import leg_parts
+    from cad.parts.shell import _hip_frame
+
+    for tag, legs in (("fore", ("FL", "FR")), ("aft", ("RL", "RR"))):
+        for leg in legs:
+            thigh = leg_parts(leg)["upper"]
+            for hip, _knee in _hip_window_poses(leg):
+                v = (_hip_frame(leg, hip) * thigh & skins[tag]).volume
+                assert v <= NOISE_MM3, (
+                    f"{leg} thigh shares {v:.0f} mm^3 with the {tag} skin at hip "
+                    f"{hip:.2f} rad")
+
+
+def test_the_thigh_clears_the_ribcage_at_every_commanded_pose():
+    """The interference suite used to pose the legs at STANCE and nowhere else.
+
+    body.py's hip clearance was a hand-set +-0.65 rad carrying the claim that "the gaits
+    and the cat-motion poses stay inside this". They did not: the SIT pose folds the rear
+    hip 59.6 deg back, and the ribcage scalloped for 37.2 deg left the rear thigh sharing
+    238 mm^3 of solid with it — a pose in the demo sequence that the robot could not
+    actually strike. The window is derived from the motion library now, and this walks
+    that library rather than trusting the number.
+    """
+    import math
+
+    from cad.assembly import _leg_locations
+    from cad.parts.body import torso_aft, torso_fore
+    from cad.parts.leg import leg_parts
+    from sim import cute_motion as CM
+    from sim.gait import ankle_from_knee, leg_depth, leg_ik, stance_angles
+
+    frames = {"F": torso_fore(), "R": torso_aft()}
+    for leg in ("FL", "RL"):
+        thigh = leg_parts(leg)["upper"]
+        frame = frames[leg[0]]
+        key = "front" if leg[0] == "F" else "rear"
+        poses = [stance_angles(leg)]
+        for fn, _dur in CM.GESTURES.values():
+            for u in (0.35, 0.55, 0.8):
+                tgt = fn(u)
+                try:
+                    poses.append(leg_ik(leg, tgt.get(f"{key}_tuck", 0.0),
+                                        leg_depth(leg) * tgt.get(f"{key}_depth", 1.0)))
+                except Exception:
+                    continue
+        for hip, knee in poses:
+            _, Th, _, _ = _leg_locations(leg, hip, knee, ankle_from_knee(leg, knee))
+            v = (Th * thigh & frame).volume
+            assert v <= NOISE_MM3, (
+                f"{leg} thigh shares {v:.0f} mm^3 with the ribcage at hip "
+                f"{math.degrees(hip):.1f} deg / knee {math.degrees(knee):.1f} deg")
+
+
+# --------------------------------------------------------------- limb fairings
+def test_fairings_clear_the_limbs_they_wrap():
+    """A cover that shares material with its limb cannot be fitted over it."""
+    from cad.parts.fairing import shank_fairing, thigh_fairing
+    from cad.parts.leg import leg_parts
+
+    for leg in ("FL", "RL"):
+        pl = leg_parts(leg)
+        for seg, fn in (("upper", thigh_fairing), ("lower", shank_fairing)):
+            v = (fn(leg) & pl[seg]).volume
+            assert v <= NOISE_MM3, (
+                f"{leg} {seg} fairing shares {v:.0f} mm^3 with the limb it wraps")
+
+
+def test_thigh_fairings_clear_the_torso_through_the_hip_window(skins):
+    """The scapula cover turns with the thigh, so it has to miss the body at every hip
+    angle — not only the one it happened to be drawn at."""
+    from cad.parts.fairing import thigh_fairing
+    from cad.parts.shell import _hip_frame
+
+    for tag, legs in (("fore", ("FL",)), ("aft", ("RL",))):
+        for leg in legs:
+            fair = thigh_fairing(leg)
+            for hip, _knee in _hip_window_poses(leg, n=5):
+                v = (_hip_frame(leg, hip) * fair & skins[tag]).volume
+                assert v <= NOISE_MM3, (
+                    f"{leg} thigh fairing shares {v:.0f} mm^3 with the {tag} skin at hip "
+                    f"{hip:.2f} rad")
