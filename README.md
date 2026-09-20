@@ -9,7 +9,7 @@
 </p>
 <p align="center"><em>Left: the face — Ø100 head on a 180 mm body, baby-schema by intent and by
 actuator budget (it holds two of the twelve servos). Right: walk gait, CoM-tracked — torso
-roll ≈ 3.0° p-p.</em></p>
+roll ≈ 3.2° p-p.</em></p>
 
 Sabo is a kitten-scale (**~1.31 kg**) quadruped platform: **fully 3D-printed**, driven by
 cheap **serial-bus servos**, and designed to be **quiet** and **backdrivable** enough to
@@ -70,7 +70,7 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 
 | Platform | |
 |---|---|
-| Mass | **1514 g** (plastic 543 + components 971) — target 0.8–1.6 kg |
+| Mass | **1565 g** (plastic 594 + components 971) — target 0.8–1.6 kg |
 | BOM cost | $699 / **$834** / $968 (lo / mid / hi) |
 | DOF | **12 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 4 expressive (waist, head pan/pitch, tail). The head holds two servo housings, so the ears are rigid and camera **roll** is corrected electronically instead of by a third gimbal axis |
 | Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
@@ -84,9 +84,9 @@ Gait benchmark (MuJoCo):
 
 | Gait | Upright | Travel | Peak torque (% of stall) | Torso roll p-p |
 |---|:--:|--:|--:|--:|
-| stand | ✓ | — | 13 % | 0.0° |
-| walk | ✓ | 8 cm | 43 % | 3.0° |
-| trot | ✓ | 41 cm | 35 % | 3.0° |
+| stand | ✓ | — | 14 % | 0.0° |
+| walk | ✓ | 7 cm | 43 % | 3.2° |
+| trot | ✓ | 40 cm | 36 % | 2.9° |
 
 > Hardware-measured metrics (acoustic dB, backlash, backdrive torque, battery runtime,
 > sim-to-real gap) are **TBD** — pending the physical build (see

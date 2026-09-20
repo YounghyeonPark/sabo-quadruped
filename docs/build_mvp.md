@@ -135,8 +135,8 @@ squeeze-out; clamp until cured.
 
 ### 2c. Filament + time estimate
 
-- **Filament to order: ~641 g** PLA/PETG (`analysis.bom._printed_grams`):
-  **543 g** of printed parts (`parts_manifest.totals.printed_plastic_g`, which now
+- **Filament to order: ~701 g** PLA/PETG (`analysis.bom._printed_grams`):
+  **594 g** of printed parts (`parts_manifest.totals.printed_plastic_g`, which now
   includes the skin and the limb fairings — they are real parts, not an estimate
   bolted on afterwards) + **×1.18** supports/purge/failure waste. Buy **1 kg PETG +
   1 kg PLA** spools (structural vs skin) + a short length of TPU for the 4 paw pads.

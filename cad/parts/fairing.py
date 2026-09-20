@@ -37,10 +37,22 @@ HIP_SAMPLES = 7         # poses the torso trim is sampled at
 
 
 def _seg_stations(leg: str, seg: str) -> list:
-    """(z, cx, cy, ax, ay) ellipse stations wrapping one limb segment.
+    """(z, cx, cy, hx, hy, r) sections wrapping one limb segment, shaped as muscle.
 
     Measured from the segment solid rather than declared, so a change to the leg cannot
     leave the fairing behind — which is the failure this whole module exists to fix.
+
+    But measured is not the same as traced. Following each slab's own half-extents gave a
+    cover that was a faithful box around a box: the thigh's dominant feature is the
+    rectangular knee servo halfway down it, so the fairing came out as a crate slung under
+    the hip, slimmer above and below it. Correct, and not a cat.
+
+    So the extents are run up into a MONOTONE envelope instead — every station widened to
+    the largest section at or below it — which turns the mid-thigh bulge into a haunch,
+    broadest at the hip and tapering to the knee, the way the muscle it stands in for
+    actually runs. Nothing is given up for it: the envelope only ever grows, so it still
+    contains every section it has to clear. The ends then dome over instead of stopping
+    flat.
     """
     key = (leg, seg)
     hit = _STATION_CACHE.get(key)
@@ -54,96 +66,101 @@ def _seg_stations(leg: str, seg: str) -> list:
     bb = part.bounding_box()
     h = (bb.max.Z - bb.min.Z) / WRAP_SLABS
     gap = P.FAIRING_CLEAR + P.FAIRING_T
-    out = []
+
+    slabs = []
     for i in range(WRAP_SLABS):
-        a, b = bb.min.Z + i * h, bb.min.Z + (i + 1) * h
-        z = (a + b) / 2
-        slab = part & (Pos(0, 0, z) * Box(400, 400, b - a))
+        lo, hi = bb.min.Z + i * h, bb.min.Z + (i + 1) * h
+        slab = part & (Pos(0, 0, (lo + hi) / 2) * Box(400, 400, hi - lo))
         if slab.volume < 1.0:
             continue
-        s = slab.bounding_box()
-        # ROUNDED RECTANGLES, not ellipses. The sections being wrapped are boxy -- the
-        # knee servo most of all -- and an ellipse has to circumscribe the box's corners
-        # to contain it, which blew the thigh fairing out to 80 x 90 mm. A rounded rect
-        # hugs the same section at its true half-extents.
-        out.append((z, s.center().X, s.center().Y,
-                    s.size.X / 2 + gap, s.size.Y / 2 + gap))
-    # extend the end stations to the segment's real ends so nothing pokes out
-    if out:
-        z0, cx0, cy0, ax0, ay0 = out[0]
-        out.insert(0, (bb.min.Z - P.FAIRING_CLEAR, cx0, cy0, ax0 * 0.55, ay0 * 0.55))
-        z1, cx1, cy1, ax1, ay1 = out[-1]
-        out.append((bb.max.Z + P.FAIRING_CLEAR, cx1, cy1, ax1 * 0.55, ay1 * 0.55))
-    _STATION_CACHE[key] = out
-    return out
+        sb = slab.bounding_box()
+        slabs.append([lo, hi, sb.min.X - gap, sb.max.X + gap,
+                      sb.min.Y - gap, sb.max.Y + gap])
+    if not slabs:
+        return []
+
+    # The envelope is carried as BOUNDS, not as a centre plus a half-width, and each
+    # bound only ever moves outward going up. Growing a half-width while averaging the
+    # centre -- which is what this did first -- slides the section off the limb: at
+    # mid-thigh the smoothed centre sat 2.9 mm inboard of the servo it was covering, ate
+    # the 1.2 mm running clearance, and the cover shared 1200 mm3 with the limb. A
+    # running min and max cannot drift; it is also the only smoothing the shape needs.
+    for i in range(1, len(slabs)):
+        slabs[i][2] = min(slabs[i][2], slabs[i - 1][2])
+        slabs[i][3] = max(slabs[i][3], slabs[i - 1][3])
+        slabs[i][4] = min(slabs[i][4], slabs[i - 1][4])
+        slabs[i][5] = max(slabs[i][5], slabs[i - 1][5])
+
+    def station(z, sl):
+        return (z, (sl[2] + sl[3]) / 2, (sl[4] + sl[5]) / 2,
+                (sl[3] - sl[2]) / 2, (sl[5] - sl[4]) / 2)
+
+    # Stations go on the slab BOUNDARIES, not the slab centres. A slab's extent is the
+    # maximum over its whole height, but a station at its centre only reaches that at the
+    # centre: between two centres the ruled loft interpolates and dips inside the limb.
+    out = [station(slabs[0][0], slabs[0])]
+    for i, sl in enumerate(slabs):
+        nxt = slabs[min(i + 1, len(slabs) - 1)]
+        wide = [0, 0, min(sl[2], nxt[2]), max(sl[3], nxt[3]),
+                min(sl[4], nxt[4]), max(sl[5], nxt[5])]
+        out.append(station(sl[1], wide))
+
+    # Square off at the limb's real ends first, then dome BEYOND them. Doming from the
+    # end slab's centre put the tapered cap stations back inside the limb.
+    e0, e1 = bb.min.Z - P.FAIRING_CLEAR, bb.max.Z + P.FAIRING_CLEAR
+    _z, cx0, cy0, hx0, hy0 = out[0]
+    _z, cx1, cy1, hx1, hy1 = out[-1]
+    out.insert(0, (e0, cx0, cy0, hx0, hy0))
+    out.append((e1, cx1, cy1, hx1, hy1))
+    for f in (0.86, 0.55):                      # quarter-circle of stations: d = R*sqrt(1-f^2)
+        d = CAP_RISE * math.sqrt(max(1e-6, 1.0 - f * f))
+        out.insert(0, (e0 - d, cx0, cy0, hx0 * f, hy0 * f))
+        out.append((e1 + d, cx1, cy1, hx1 * f, hy1 * f))
+
+    # One corner radius per station, taken from the INNER wall so the outer and inner
+    # lofts round identically — letting them differ is what made the two surfaces
+    # un-subtractable (see _loft_stations).
+    # A rounded corner cuts the corner off the box it is covering. For a box of half
+    # extents (u, v) to sit inside a rounded rect of (u + d, v + d) with radius r, the
+    # arc has to clear the box's corner: 2(r - d)^2 <= r^2, i.e. d >= r(1 - 1/sqrt2).
+    # The running clearance pays part of that; the rest is added here. Without it the
+    # servo's four corners poked through the thigh cover -- 90 mm3 at each of two of them.
+    sized = []
+    for z, cx, cy, hx, hy in out:
+        lim = max(0.6, min(hx, hy) - P.FAIRING_T) * 0.9
+        r = min(CORNER_R, lim)
+        pad = max(0.0, r * (1.0 - 1.0 / math.sqrt(2.0)) - P.FAIRING_CLEAR)
+        sized.append((z, cx, cy, hx + pad, hy + pad, r))
+    _STATION_CACHE[key] = sized
+    return sized
 
 
-CORNER_R = 2.5          # section corner radius, CONSTANT along the loft
+CORNER_R = 11.0         # how round a section may get, capped per station
+CAP_RISE = 9.0          # how far a domed end reaches past the limb
 
 
 def _loft_stations(stations, grow: float = 0.0) -> Part:
     """Loft rounded-rectangle sections stacked along z.
 
-    The corner radius is a constant, not a fraction of each section. Scaling it per
-    station means the outer and inner lofts round differently, and the surfaces that
-    produced could not be subtracted from one another: the FL shank came back at 21 972
-    mm3 -- its outer volume, the cut silently not applied -- while the RL shank came back
-    at 0. A boolean that returns one operand unchanged, or nothing at all, has failed, so
-    the sections are kept parallel and the shell subtracts cleanly.
+    Each station carries its OWN corner radius and both the outer and the inner loft use
+    it unchanged. Scaling the radius to each section instead means the two lofts round
+    differently, and the surfaces that produces cannot be subtracted from one another:
+    the FL shank came back at 21 972 mm3 -- its outer volume, the cut silently not
+    applied -- while the RL shank came back at 0.
+
+    RULED, not smooth. A limb's sections are not monotonic and a smooth loft through them
+    wobbles enough to self-intersect. ``Shape.is_valid`` does not test for that, so it
+    answers True and the damage only shows downstream: one fairing came back with a
+    NEGATIVE volume of -6853 mm3. Straight spans between sections cannot wobble.
     """
     with BuildPart() as p:
-        for z, cx, cy, ax, ay in stations:
-            hx, hy = max(ax + grow, CORNER_R + 0.3), max(ay + grow, CORNER_R + 0.3)
+        for z, cx, cy, ax, ay, r in stations:
+            hx, hy = max(ax + grow, r + 0.3), max(ay + grow, r + 0.3)
             with BuildSketch(Plane.XY.offset(z)):
                 with Locations((cx, cy)):
-                    RectangleRounded(2 * hx, 2 * hy, CORNER_R)
-        # RULED, not smooth. A limb's sections are not monotonic -- the shank is a 7 mm
-        # blade at the knee and twice that below it -- and a smooth loft through them
-        # wobbles enough to self-intersect. The solid still answers is_valid, which does
-        # not test for that, so the damage only showed up downstream: booleans against it
-        # returned a fairing that shared the limb's ENTIRE volume with the limb, and once
-        # a NEGATIVE volume of -6853 mm3. Straight spans between sections cannot wobble.
+                    RectangleRounded(2 * hx, 2 * hy, r)
         loft(ruled=True)
     return p.part
-
-
-def _limb_boxes(leg: str, seg: str) -> list:
-    """The limb, as a stack of per-slab boxes: what the fairing has to be hollow AROUND.
-
-    Returned as a LIST, and subtracted one box at a time, because neither of the tidier
-    ways of doing this survives OCCT.
-
-    An inward offset of the lofted section is the obvious way to hollow a lofted shell,
-    and it fails on a steep taper: the thigh steps from a 60 mm servo bulge to a 23 mm
-    neck over 12 mm of length, and an in-plane inset there is far larger than a
-    perpendicular one, so the inner surface crosses back OUTSIDE the outer. That split the
-    RL thigh fairing in two before it was ever trimmed.
-
-    Fusing the boxes into one cavity solid and subtracting that fails differently, and
-    worse because it fails quietly: for the FL shank the fused cavity provably contained
-    the whole limb (limb minus cavity = 0.0 mm3) and yet the wrap minus that cavity still
-    shared 5318 mm3 with it -- the limb's entire volume. A union of seven overlapping
-    boxes is full of coincident faces, and subtracting it returns garbage. Cutting with
-    the boxes one at a time is loft-minus-box every time, which is the boolean OCCT is
-    most reliable at.
-    """
-    from build123d import Box
-    from cad.parts.leg import leg_parts
-
-    part = leg_parts(leg)[seg]
-    bb = part.bounding_box()
-    h = (bb.max.Z - bb.min.Z) / WRAP_SLABS
-    c = P.FAIRING_CLEAR
-    out = []
-    for i in range(WRAP_SLABS):
-        a, b = bb.min.Z + i * h, bb.min.Z + (i + 1) * h
-        slab = part & (Pos(0, 0, (a + b) / 2) * Box(400, 400, b - a))
-        if slab.volume < 1.0:
-            continue
-        sb = slab.bounding_box()
-        out.append(Pos(sb.center().X, sb.center().Y, (a + b) / 2) * Box(
-            sb.size.X + 2 * c, sb.size.Y + 2 * c, (b - a) + 2 * c))
-    return out
 
 
 def _torso_keepouts(leg: str) -> list:
@@ -212,9 +229,15 @@ def _fairing(leg: str, seg: str, trim_torso: bool) -> Part:
 
     st = _seg_stations(leg, seg)
     outer = _loft_stations(st)
-    part = outer
-    for box in _limb_boxes(leg, seg):
-        part = part - box
+    # The cavity is the outer wall stepped inward, which is only safe now that the
+    # sections are monotone and share a corner radius per station. Before those two, the
+    # inner surface crossed back OUTSIDE the outer on the thigh's steep taper and split
+    # the fairing in two, so the limb's own per-slab boxes were cut out instead. Those
+    # follow the LIMB, and once the outer wall was reshaped into a haunch that no longer
+    # follows the limb, the webs of wall left standing between boxes of different widths
+    # broke off -- the FL thigh came out in five pieces. A parallel wall has no webs.
+    inner = _loft_stations(st, grow=-P.FAIRING_T)
+    part = outer - inner
     if trim_torso:
         for ko in _torso_keepouts(leg):
             part = part - ko
