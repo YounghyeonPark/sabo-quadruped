@@ -44,7 +44,14 @@ backdrivable + sub-1 kg** at once.
 - **Buildable, not just drawable** — every pivot is a **clevis in double shear** and the
   thigh is a channel the whole four-bar runs inside, so no two printed parts share solid.
   A regression test ([`tests/test_geometry.py`](tests/test_geometry.py)) rebuilds the posed
-  robot and fails on any interference, missing servo relief, or unfastened part.
+  robot and fails on any interference, missing servo relief, or unfastened part — and it
+  sweeps the **whole commanded motion range**, not the stance pose, which is what caught a
+  rear thigh fouling the ribcage 22° past where the clearance had been cut for.
+- **A skin that is a part, not a picture** — the shell carries real openings for everything
+  that passes through it (legs, neck, tail, spine joint), each cut from the swept volume of
+  the thing that passes. The flank cannot be closed by a static shell, because the knee
+  servo lies laterally and sweeps it open, so the scapula and haunch **fairings**
+  ([`cad/parts/fairing.py`](cad/parts/fairing.py)) turn with the thigh instead.
 - **Actuators that actually fit** — `analysis/actuator_fit.py` measures whether there is
   *room* for each servo, not just torque. It is why the tail is driven remotely (like the
   hip), why the head is Ø100 and sits at the torso's nose, and why the last expression
@@ -63,7 +70,7 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 
 | Platform | |
 |---|---|
-| Mass | **1314 g** (plastic 343 + components 971) — target 0.8–1.6 kg |
+| Mass | **1514 g** (plastic 543 + components 971) — target 0.8–1.6 kg |
 | BOM cost | $699 / **$834** / $968 (lo / mid / hi) |
 | DOF | **12 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 4 expressive (waist, head pan/pitch, tail). The head holds two servo housings, so the ears are rigid and camera **roll** is corrected electronically instead of by a third gimbal axis |
 | Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |

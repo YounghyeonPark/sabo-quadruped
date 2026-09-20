@@ -5,8 +5,12 @@ parametric CAD: dimensions live in `cad/params.py`, the per-part print plan in
 `cad/print_manifest.py` (run `python -m cad.print_manifest`), and the mass /
 fit numbers below come from `python -m cad.export` + `python -m analysis.validate`.
 
-The **cosmetic skin** (`cad/parts/shell.py`) is a separate cover that clips over
-the finished frame; it is not part of this bolt-up sequence except at the end.
+The **skin** (`cad/parts/shell.py`) goes on at the end, but it is not cosmetic and it
+is not optional: it carries the openings the legs, the neck, the tail and the spine
+joint pass through, and it is in the mass budget. The **limb fairings**
+(`cad/parts/fairing.py`) are part of it — a static shell cannot close the flank,
+because the knee servo lies laterally and sweeps it open as the hip works, so the
+scapula and haunch covers bolt to the thighs and turn with them.
 
 ---
 
@@ -282,7 +286,11 @@ waist (9) → head pan/pitch (10–11) → tail (12). LED eyes are
 7. **Electronics.** Seat the Jetson in the fore back-bay, battery in the aft belly
    bay, bus adapter + speaker in the aft. Route + daisy-chain the bus (§4), plug
    the head sensor loom down the neck.
-8. **Skin.** Clip the cosmetic `shell` halves + head shell over the frame last.
+8. **Skin.** Fit the `shell` halves + head shell over the frame last, then bolt the
+   four limb fairings on: 2× M2 each into the inserts in the thigh and the shank
+   (the shank's pair sits below the knee blade). Check the fairings swing clear of
+   the body through a full hip sweep before the screws go in — they are cut to the
+   hip's real working window, so a fairing that fouls means a limb is mis-seated.
 
 ---
 

@@ -97,22 +97,35 @@ def _loft_stations(stations, grow: float = 0.0) -> Part:
             with BuildSketch(Plane.XY.offset(z)):
                 with Locations((cx, cy)):
                     RectangleRounded(2 * hx, 2 * hy, CORNER_R)
-        loft()
+        # RULED, not smooth. A limb's sections are not monotonic -- the shank is a 7 mm
+        # blade at the knee and twice that below it -- and a smooth loft through them
+        # wobbles enough to self-intersect. The solid still answers is_valid, which does
+        # not test for that, so the damage only showed up downstream: booleans against it
+        # returned a fairing that shared the limb's ENTIRE volume with the limb, and once
+        # a NEGATIVE volume of -6853 mm3. Straight spans between sections cannot wobble.
+        loft(ruled=True)
     return p.part
 
 
-def _limb_cavity(leg: str, seg: str) -> Part:
-    """What the fairing has to be hollow AROUND: the limb itself, plus running clearance.
+def _limb_boxes(leg: str, seg: str) -> list:
+    """The limb, as a stack of per-slab boxes: what the fairing has to be hollow AROUND.
 
-    Not an inward offset of the wrap. Shrinking the lofted section by the wall thickness
-    is the obvious way to hollow a lofted shell and it fails here, because the thigh's
-    profile steps from a 60 mm servo bulge to a 23 mm neck over 12 mm of length: on a
-    taper that steep an in-plane inset is far larger than a perpendicular one, and the
-    inner surface crosses back OUTSIDE the outer. That split the RL thigh fairing into
-    two solids before it was ever trimmed.
+    Returned as a LIST, and subtracted one box at a time, because neither of the tidier
+    ways of doing this survives OCCT.
 
-    A stack of per-slab boxes cannot invert, and it is the more honest cavity anyway -- a
-    cover's inside should follow the limb it clips over, not the styling of its outside.
+    An inward offset of the lofted section is the obvious way to hollow a lofted shell,
+    and it fails on a steep taper: the thigh steps from a 60 mm servo bulge to a 23 mm
+    neck over 12 mm of length, and an in-plane inset there is far larger than a
+    perpendicular one, so the inner surface crosses back OUTSIDE the outer. That split the
+    RL thigh fairing in two before it was ever trimmed.
+
+    Fusing the boxes into one cavity solid and subtracting that fails differently, and
+    worse because it fails quietly: for the FL shank the fused cavity provably contained
+    the whole limb (limb minus cavity = 0.0 mm3) and yet the wrap minus that cavity still
+    shared 5318 mm3 with it -- the limb's entire volume. A union of seven overlapping
+    boxes is full of coincident faces, and subtracting it returns garbage. Cutting with
+    the boxes one at a time is loft-minus-box every time, which is the boolean OCCT is
+    most reliable at.
     """
     from build123d import Box
     from cad.parts.leg import leg_parts
@@ -121,26 +134,31 @@ def _limb_cavity(leg: str, seg: str) -> Part:
     bb = part.bounding_box()
     h = (bb.max.Z - bb.min.Z) / WRAP_SLABS
     c = P.FAIRING_CLEAR
-    out = None
+    out = []
     for i in range(WRAP_SLABS):
         a, b = bb.min.Z + i * h, bb.min.Z + (i + 1) * h
         slab = part & (Pos(0, 0, (a + b) / 2) * Box(400, 400, b - a))
         if slab.volume < 1.0:
             continue
         sb = slab.bounding_box()
-        box = Pos(sb.center().X, sb.center().Y, (a + b) / 2) * Box(
-            sb.size.X + 2 * c, sb.size.Y + 2 * c, (b - a) + 2 * c)
-        out = box if out is None else out + box
+        out.append(Pos(sb.center().X, sb.center().Y, (a + b) / 2) * Box(
+            sb.size.X + 2 * c, sb.size.Y + 2 * c, (b - a) + 2 * c))
     return out
 
 
-def _torso_keepout(leg: str) -> Part:
-    """The torso, as the fairing sees it, in the THIGH's local frame.
+def _torso_keepouts(leg: str) -> list:
+    """The torso, posed into the THIGH's frame once per hip sample -- as a LIST.
 
-    The skin is re-lofted solid and grown by ``SKIN_CLEAR`` rather than offset — an
-    offset on a loft is fragile, and the station table is right there. Sampling the hip
-    window and unioning gives the region the fairing must stay out of at every pose,
-    which is the same real-swept-volume rule the ribcage scallops and the leg ports use.
+    The skin is re-lofted solid and grown by ``SKIN_CLEAR`` rather than offset: an offset
+    on a loft is fragile and the station table is right there. Sampling the hip window
+    gives the region the fairing must stay out of at every pose, which is the same
+    real-swept-volume rule the ribcage scallops and the leg ports use.
+
+    Not fused, for the same reason ``_limb_boxes`` is not: a union of seven big
+    overlapping lofts is a corrupt solid, and it lies. Fused, it reported the RL thigh
+    fairing entirely OUTSIDE it -- intersection 0.0 mm3 -- while the posed fairing was in
+    fact sharing 161 mm3 with the aft skin. Subtracted one pose at a time, each cut is a
+    shell against a single clean loft.
     """
     from cad.parts.body import hip_work_range
     from cad.parts.shell import AFT_STATIONS, FORE_STATIONS, _loft_body
@@ -153,12 +171,11 @@ def _torso_keepout(leg: str) -> Part:
     s = P.leg_plane_sign(leg)
     hip0 = stance_angles(leg)[0]
     lo, hi = hip_work_range(leg)
-    out = None
+    out = []
     for i in range(HIP_SAMPLES):
         ang = hip0 + lo + (hi - lo) * i / (HIP_SAMPLES - 1)
         T = Pos(mx, my + s * P.leg_geom(leg)["hip_off"], 0) * Rot(0, -math.degrees(ang), 0)
-        posed = T.inverse() * body
-        out = posed if out is None else out + posed
+        out.append(T.inverse() * body)
     return out
 
 
@@ -195,9 +212,12 @@ def _fairing(leg: str, seg: str, trim_torso: bool) -> Part:
 
     st = _seg_stations(leg, seg)
     outer = _loft_stations(st)
-    part = outer - _limb_cavity(leg, seg)
+    part = outer
+    for box in _limb_boxes(leg, seg):
+        part = part - box
     if trim_torso:
-        part = part - _torso_keepout(leg)
+        for ko in _torso_keepouts(leg):
+            part = part - ko
     part = _screw_holes(part, leg, seg)
     _FAIRING_CACHE[key] = part
     return part

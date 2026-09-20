@@ -19,7 +19,7 @@ niceties.
 ## Contributions
 
 1. **A cost/quietness/compliance point that is currently unserved at kitten scale.**
-   ~$834 mid BOM, 1314 g, backdrivable serial servos with torque-off silent hold.
+   ~$834 mid BOM, 1514 g, backdrivable serial servos with torque-off silent hold.
 2. **A limb architecture that keeps the leg light + quiet + the motors central:**
    a **proximal four-bar knee** (crank → pushrod → rocker, no cable friction) and a
    **remote-axle hip** (hip servos in the torso core, driven out to the pivot by a
@@ -36,7 +36,7 @@ niceties.
 
 | | |
 |---|---|
-| **Mass** | 1314 g (plastic 343 g + components 971 g) — target 0.8–1.6 kg |
+| **Mass** | 1514 g (plastic 543 g + components 971 g) — target 0.8–1.6 kg |
 | **Cost (BOM)** | $699 / **$834** / $968 (lo / mid / hi) |
 | **DOF** | 12 actuated; per leg = 2 motorized (hip, knee) + coupled ankle/hock + rigid abduction; 4 expressive (waist, head pan/pitch, tail) — ears rigid, camera roll by EIS |
 | **Actuator** | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial daisy-chain, **backdrivable** |
@@ -44,7 +44,7 @@ niceties.
 | **Sensors** | stereo CSI eyes, BNO085 IMU, 2× VL53L1X ToF, 2× I²S mic, BME688 e-nose, I²S speaker |
 | **Envelope** | 352 × 201 × 197 mm (posed) |
 | **Legs** | front 67.5 / 52.0 / 26.0 mm, rear 64.0 / 80.5 / 31.5 mm (digitigrade, cat-anatomical) |
-| **Fabrication** | fully 3D-printed frame (PLA/PETG), 72 heat-set inserts (64× M2 + 8× M3), clevis pivots on Ø3 pins; head + torso split for print |
+| **Fabrication** | fully 3D-printed frame + skin (PLA/PETG), 31 distinct parts, 88 heat-set inserts (80× M2 + 8× M3), clevis pivots on Ø3 pins; head + torso split for print |
 
 ## Mechanism (design contribution)
 
