@@ -291,6 +291,7 @@ def _servo_pack(px: float, pz: float, pivot_y: float, sign: int,
 # across the sweep, which looks like the win, and it is not: its far end then sits at
 # r = 67 mm and sweeps 63 mm. Measured, that turn made the fore leg port BIGGER --
 # 8490 mm3 to 10712, x-span 76 mm to 87.
+BOSS_CORNER_R = 5.0            # _servo_pack rounds every housing by this
 KNEE_BOSS_LONG_AXIS = "x"      # fore-aft: keeps the housing's far corner close to the hip
 KNEE_BOSS_SHAFT_END = +1
 

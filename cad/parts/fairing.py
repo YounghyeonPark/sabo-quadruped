@@ -121,16 +121,40 @@ def _seg_stations(leg: str, seg: str) -> list:
     # One corner radius per station, taken from the INNER wall so the outer and inner
     # lofts round identically — letting them differ is what made the two surfaces
     # un-subtractable (see _loft_stations).
-    # A rounded corner cuts the corner off the box it is covering. For a box of half
-    # extents (u, v) to sit inside a rounded rect of (u + d, v + d) with radius r, the
-    # arc has to clear the box's corner: 2(r - d)^2 <= r^2, i.e. d >= r(1 - 1/sqrt2).
-    # The running clearance pays part of that; the rest is added here. Without it the
-    # servo's four corners poked through the thigh cover -- 90 mm3 at each of two of them.
+    # A rounded corner cuts the corner off whatever it covers, so the section has to be
+    # padded until its arc clears. For an inner corner of radius p inside an outer of
+    # radius r, offset by d, the condition is sqrt2(r - p - d) <= r - p, which gives
+    # d >= (r - p)(1 - 1/sqrt2). The running clearance pays part of it.
+    #
+    # ``p`` matters, and it is not the same all the way down. Treating the limb as a SHARP
+    # box everywhere charges the full r(1 - 1/sqrt2) and that was 3.8 mm per side on the
+    # thigh -- 7.6 mm of fore-aft width, the second biggest term in the cover after the
+    # servo case itself. Over the knee-servo housing the limb is not sharp: _servo_pack
+    # rounds every boss by BOSS_CORNER_R, so the allowance there is honestly smaller.
+    #
+    # Everywhere else it IS sharp. Claiming the discount along the whole thigh put the
+    # cover back inside the hip-horn mount and the knee fork, ~27 mm3 at each of four
+    # corners, so the discount is applied only over the housing's own z band.
+    from cad.parts.leg import BOSS_CORNER_R, knee_boss_envelope
+
+    if seg == "upper":
+        (_cx, _cy, bz), (_dx, _dy, bdz) = knee_boss_envelope(
+            P.leg_geom(leg)["upper"], P.leg_plane_sign(leg))
+        # widened by one slab: the stations sitting on the slab boundaries just outside
+        # the housing still carry ITS bounds -- they take the maximum over the slab below
+        # and the slab above -- so charging them the sharp-corner allowance put the full
+        # 7.6 mm back on the widest part of the cover, which is the part being slimmed.
+        boss_lo, boss_hi = bz - bdz / 2 - h, bz + bdz / 2 + h
+    else:
+        boss_lo = boss_hi = None
+
     sized = []
     for z, cx, cy, hx, hy in out:
         lim = max(0.6, min(hx, hy) - P.FAIRING_T) * 0.9
         r = min(CORNER_R, lim)
-        pad = max(0.0, r * (1.0 - 1.0 / math.sqrt(2.0)) - P.FAIRING_CLEAR)
+        rounded = boss_lo is not None and boss_lo <= z <= boss_hi
+        p_in = min(BOSS_CORNER_R, min(hx, hy)) if rounded else 0.0
+        pad = max(0.0, (r - p_in) * (1.0 - 1.0 / math.sqrt(2.0)) - P.FAIRING_CLEAR)
         sized.append((z, cx, cy, hx + pad, hy + pad, r))
     _STATION_CACHE[key] = sized
     return sized

@@ -98,7 +98,7 @@ SKIN_RIM = 3.0          # material kept around a port so its edge is not a knife
 # protrusion that forces body.py's ribcage scallop), so as the hip sweeps it carves the
 # whole flank open. Only a cover that turns with the thigh can follow it -- which is what
 # a cat's scapula does, and why the fairing is a separate part rather than more skin.
-FAIRING_T = 2.0         # fairing wall (mm) — thinner than the torso skin; it carries no load
+FAIRING_T = 1.6         # fairing wall (mm) — 4 perimeters at a 0.4 nozzle; it carries no load
 FAIRING_CLEAR = 1.2     # gap between a fairing and the limb it wraps (mm)
 FAIRING_OVERLAP = 6.0   # how far a fairing laps OVER the port rim, so no gap opens at gait angles
 FAIRING_SCREWS = 2      # inserts holding each fairing to its segment
