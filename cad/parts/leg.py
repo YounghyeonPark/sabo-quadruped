@@ -406,7 +406,8 @@ def servo_cavity(long_axis: str = "x", sign: int = 1, wall: float = 3.0) -> Part
     return cut
 
 
-def hip_bracket(sign: int = 1, hip_off: float = 28.0, x_shift: float = 0.0) -> Part:
+def hip_bracket(sign: int = 1, hip_off: float = 28.0, x_shift: float = 0.0,
+                leg: str = "FL") -> Part:
     """Slim shoulder BEARING BLOCK, bolted to the torso flank (remote-axle hip drive).
 
     The hip/shoulder servo BODY is in the torso core (body.py ``_core_hip_drive``). This
@@ -446,8 +447,7 @@ def hip_bracket(sign: int = 1, hip_off: float = 28.0, x_shift: float = 0.0) -> P
     part -= Pos(0, yb, 0) * _cyl_y(hb["od_r"], hb["width"])
     part -= Pos(0, yb, 0) * F.pin_head_seat("y", face=-sign * (blen / 2.0))
     # mount screws: clearance through the foot, into heat-set inserts in the torso pad
-    for i in range(P.MOUNT_SCREWS):
-        sx = (i - (P.MOUNT_SCREWS - 1) / 2.0) * P.MOUNT_BOLT_PITCH
+    for sx in P.mount_screw_xs(leg):
         part -= Pos(sx, yf, 0) * F.screw_clearance(P.MOUNT_SCREW, "y", foot_t + 8)
     return part
 
@@ -610,6 +610,38 @@ def foot_seg(length: float) -> Part:
     return strut + paw
 
 
+def _bracket_boss_relief(leg: str) -> Part:
+    """The knee-servo housing's sweep, in the HIP BRACKET's frame.
+
+    The bracket's foot is a 26 x 14 mm plate on the torso flank, centred on the hip axis,
+    and the housing swings past it as the hip works. On the front leg they miss. On the
+    rear they do not: the rear thigh is 3.5 mm SHORTER (64 vs 67.5) but the crank's
+    ground is the same 38 mm, so the rear housing sits 3.5 mm closer to the hip -- its
+    near face 10.6 mm off the axis, against a foot whose corners reach 14.8. They shared
+    60-134 mm3 at every hip angle, and the suite never saw it because it only ever
+    assembled the FRONT legs against the torso.
+
+    The ribcage already carries this same swept relief (body._hip_sweep_relief); the
+    foot sits on that ribcage's flank, so it takes the same cut.
+    """
+    from cad.parts.body import hip_work_range
+    from sim.gait import stance_angles
+
+    g = P.leg_geom(leg)
+    s = P.leg_plane_sign(leg)
+    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(g["upper"], s)
+    c = 1.0                                         # running clearance
+    boss = Pos(cx, cy, cz) * _rounded_box(dx + 2 * c, dy + 2 * c, dz + 2 * c, BOSS_CORNER_R)
+    hip0 = stance_angles(leg)[0]
+    lo, hi = hip_work_range(leg)
+    out = None
+    for i in range(9):
+        h = hip0 + lo + (hi - lo) * i / 8
+        posed = Pos(0, s * g["hip_off"], 0) * Rot(0, -math.degrees(h), 0) * boss
+        out = posed if out is None else out + posed
+    return out
+
+
 _LEG_PARTS_CACHE: dict[str, dict] = {}
 
 
@@ -632,7 +664,8 @@ def leg_parts(leg: str) -> dict[str, Part]:
     # it stays inside the torso length rather than poking past the nose / tail.
     x_shift = -16.0 if P.is_front(leg) else 16.0
     out = {
-        "hip_bracket": hip_bracket(s, g["hip_off"], x_shift),
+        "hip_bracket": hip_bracket(s, g["hip_off"], x_shift, leg=leg)
+                       - _bracket_boss_relief(leg),
         "axle": hip_axle(g["hip_off"]),
         "upper": upper_leg(g["upper"], s),
         "crank": crank(s),

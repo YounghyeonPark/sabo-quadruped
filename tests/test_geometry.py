@@ -168,8 +168,7 @@ def test_every_printed_part_can_be_fastened_to_its_neighbour():
     from cad.parts import fasteners as F
     from build123d import Pos
     holes = 0.0
-    for i in range(P.MOUNT_SCREWS):
-        sx = (i - (P.MOUNT_SCREWS - 1) / 2.0) * P.MOUNT_BOLT_PITCH
+    for sx in P.mount_screw_xs("FL"):
         holes += (hip_bracket(1, P.FRONT["hip_off"])
                   & (Pos(sx, 2.0, 0) * F.screw_clearance(P.MOUNT_SCREW, "y", 12.0))).volume
     assert plain > 0
@@ -184,7 +183,7 @@ def test_torso_carries_the_matching_leg_mount_inserts():
 
     for leg in ("FL", "RL"):
         mx, _ = P.MOUNTS[leg]
-        pad = _leg_mount_pad(mx, P.leg_plane_sign(leg))
+        pad = _leg_mount_pad(mx, P.leg_plane_sign(leg), leg)
         bb = pad.bounding_box()
         assert pad.volume > 0
         # the pad seats on the flank plane and grows inboard, never outboard
@@ -568,3 +567,27 @@ def test_the_knee_can_fold_to_its_limit_without_the_limb_hitting_itself(leg):
         f"{leg} thigh and shank share {worst[0]:.1f} mm^3 at knee "
         f"{math.degrees(worst[1]):.1f} deg, inside the "
         f"{math.degrees(lo):.0f}..{math.degrees(hi):.0f} deg the joint allows")
+
+
+@pytest.mark.parametrize("leg", ["FL", "RL"])
+def test_the_hip_bracket_clears_its_thigh_through_the_hip_window(leg):
+    """The torso fixture only ever assembled the FRONT legs, so the rear bracket was never
+    put against its own thigh. They shared 60-134 mm^3 at every hip angle: the rear thigh
+    is 3.5 mm shorter but keeps the same 38 mm crank ground, so its knee-servo housing
+    sits 3.5 mm nearer the hip and swings through the bracket's mounting foot."""
+    import math
+
+    from cad.assembly import _leg_locations
+    from cad.parts.body import hip_work_range
+    from cad.parts.leg import leg_parts
+    from sim.gait import ankle_from_knee, stance_angles
+
+    pl = leg_parts(leg)
+    hip0, knee = stance_angles(leg)
+    lo, hi = hip_work_range(leg)
+    for i in range(9):
+        h = hip0 + lo + (hi - lo) * i / 8
+        Ta, Th, _, _ = _leg_locations(leg, h, knee, ankle_from_knee(leg, knee))
+        v = (Ta * pl["hip_bracket"] & Th * pl["upper"]).volume
+        assert v <= NOISE_MM3, (
+            f"{leg} bracket and thigh share {v:.0f} mm^3 at hip {math.degrees(h):.1f} deg")

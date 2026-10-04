@@ -350,7 +350,7 @@ def _leg_mount_relief(mx: float, s: int) -> Part:
     return Pos(mx, yf + s * 20.0, 0) * Box(pad_x + 8.0, 40.0, pad_z + 8.0)
 
 
-def _leg_mount_pad(mx: float, s: int) -> Part:
+def _leg_mount_pad(mx: float, s: int, leg: str) -> Part:
     """Flat, bolted landing for one leg's hip bracket on the torso flank.
 
     Without this the leg had NO defined attachment to the body — the bracket was simply
@@ -362,8 +362,8 @@ def _leg_mount_pad(mx: float, s: int) -> Part:
     yf = s * (P.BODY_W / 2.0)                       # the flank / seating plane
     pad = Pos(mx, yf - s * t / 2.0, 0) * Box(pad_x, t, pad_z)
     ins = P.HEATSET[P.MOUNT_SCREW]
-    for i in range(P.MOUNT_SCREWS):
-        sx = mx + (i - (P.MOUNT_SCREWS - 1) / 2.0) * P.MOUNT_BOLT_PITCH
+    for dx in P.mount_screw_xs(leg):
+        sx = mx + dx
         pad -= Pos(sx, yf - s * (ins["depth"] / 2.0), 0) *             F.heatset_hole(P.MOUNT_SCREW, "y", ins["depth"])
     return pad
 
@@ -392,7 +392,7 @@ def _half(stations, legs) -> Part:
         s = P.leg_plane_sign(leg)
         frame += _core_hip_drive(mx, s)
         frame -= _leg_mount_relief(mx, s)
-        frame += _leg_mount_pad(mx, s)
+        frame += _leg_mount_pad(mx, s, leg)
     return frame
 
 

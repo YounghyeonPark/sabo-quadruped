@@ -400,6 +400,16 @@ KNEE_FOLD_LIMIT = math.radians(123.0)   # the measured clear angle, with no marg
 # number to pad -- see the note on the fold in tests/test_geometry.py.
 
 
+def mount_screw_xs(leg: str) -> list[float]:
+    """X offsets, on the hip bracket's foot and the torso pad alike, of the mount screws.
+
+    Both parts used to compute these from MOUNT_BOLT_PITCH independently -- and so did a
+    test -- which is three places to change and two to forget.
+    """
+    pitch, centre = MOUNT_SCREW_LAYOUT[leg[0]]
+    return [centre + (i - (MOUNT_SCREWS - 1) / 2.0) * pitch for i in range(MOUNT_SCREWS)]
+
+
 def leg_knee_limit(leg: str) -> tuple[float, float]:
     """Per-leg knee JOINT soft limit (rad): the four-bar's reach, capped by the fold.
 
@@ -605,7 +615,20 @@ MOUNT_PAD = (26.0 * SCALE, 14.0 * SCALE)   # torso mount pad footprint (X, Z), m
                                   # kept short in Z so the bolted foot stays clear of
                                   # the knee servo boss swinging past it
 MOUNT_PAD_T = 5.0 * SCALE                 # pad thickness (grows inboard from the flank plane)
-MOUNT_BOLT_PITCH = 16.0 * SCALE           # screw spacing along X on the pad
+MOUNT_BOLT_PITCH = 16.0 * SCALE           # FRONT screw spacing along X on the pad
+# One layout per end, so the bracket's clearance holes, the torso pad's inserts and the
+# fastening test cannot disagree. Both ends use the same pattern, and that is a finding
+# rather than a default -- see the note in tests/test_geometry.py on the rear screw.
+#
+# Moving the REAR pattern was tried and it is a dead end. The rear knee-servo housing
+# sweeps across the aft end of the bracket's foot (the rear thigh is 3.5 mm shorter but
+# keeps the same 38 mm crank ground, so its housing sits 3.5 mm nearer the hip), and it
+# passes over the aft screw's HEAD -- steel, not in the CAD -- by 14.7 mm3. To clear the
+# sweep that screw must sit at x >= -4.1; to clear the Ø6 axle bore that runs through the
+# middle of the foot it must sit at x <= -6.45. There is no such x. Shifting it to -3 put
+# its clearance hole INTO the axle bore.
+MOUNT_SCREW_LAYOUT = {"F": (MOUNT_BOLT_PITCH, 0.0),
+                      "R": (MOUNT_BOLT_PITCH, 0.0)}   # (pitch, centre) along X, mm
 MOUNT_FACE_GAP = 0.15             # bracket-to-pad seating gap (a print-fit, not a joint)
 
 # =============================================================== waist joint clearance
