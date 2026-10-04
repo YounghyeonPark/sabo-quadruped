@@ -164,6 +164,69 @@ HIP_SWEEP_STEPS = 9
 HIP_SWEEP_MARGIN = math.radians(6.0)   # headroom past the furthest commanded pose
 
 
+def knee_work_range(leg: str) -> tuple[float, float]:
+    """(lo, hi) rad ABSOLUTE that the knee is really driven through, + a margin.
+
+    Not ``params.leg_knee_limit``: that is the mechanism's soft limit, taken from the
+    four-bar's whole reach, and nothing drives the knee there. Using it to sweep the
+    neighbours past a limb cover folded the thigh 150 deg against the shank and carved
+    the shank cover down to a third of itself in nine pieces. The commanded range is
+    about half of it.
+    """
+    cached = _KNEE_RANGE_CACHE.get(leg)
+    if cached is not None:
+        return cached
+    lo, hi = _commanded(leg, index=1)
+    # clamped to the joint's own limit: the library may ASK for a deeper fold than the
+    # limb can strike (the loaf does, by 25-35 deg), and the robot will not go there.
+    j_lo, j_hi = P.leg_knee_limit(leg)
+    out = (max(j_lo, lo - HIP_SWEEP_MARGIN), min(j_hi, hi + HIP_SWEEP_MARGIN))
+    _KNEE_RANGE_CACHE[leg] = out
+    return out
+
+
+def _commanded(leg: str, index: int) -> tuple[float, float]:
+    """(min, max) of a joint over every pose the motion library can command.
+
+    ``index`` picks which of ``leg_ik``'s outputs to track: 0 = hip, 1 = knee. The hip
+    is reported RELATIVE to stance (that is how the sweep uses it) and the knee
+    absolute.
+    """
+    from sim import cute_motion as CM
+    from sim.gait import (PRESETS, foot_target, leg_depth, leg_ik, stance_angles)
+
+    ref = stance_angles(leg)[index] if index == 0 else 0.0
+    d0 = leg_depth(leg)
+    key = "front" if leg[0] == "F" else "rear"
+    lo = hi = stance_angles(leg)[index] - ref
+
+    def note(tgt):
+        nonlocal lo, hi
+        try:
+            v = leg_ik(leg, tgt.get(f"{key}_tuck", 0.0),
+                       d0 * tgt.get(f"{key}_depth", 1.0))[index] - ref
+        except Exception:      # a keyframe the IK cannot reach is not a pose we can hold
+            return
+        lo, hi = min(lo, v), max(hi, v)
+
+    for fn, _dur in CM.GESTURES.values():
+        for i in range(61):
+            note(fn(i / 60.0))
+    jc = CM.JumpController()
+    keys = [jc._stand(), jc._crouch(), jc._extend(), jc._reach(), jc._absorb()]
+    for a, b in zip(keys, keys[1:] + keys[:1]):
+        for i in range(21):
+            note(CM._lerp_targets(a, b, i / 20.0))
+    for preset in PRESETS.values():
+        for i in range(72):
+            try:
+                v = leg_ik(leg, *foot_target(leg, i / 72.0, preset, d0))[index] - ref
+            except Exception:
+                continue
+            lo, hi = min(lo, v), max(hi, v)
+    return lo, hi
+
+
 def hip_work_range(leg: str) -> tuple[float, float]:
     """(lo, hi) rad about stance that the hip is really driven through, + a margin."""
     cached = _HIP_RANGE_CACHE.get(leg)
@@ -211,6 +274,7 @@ def hip_work_range(leg: str) -> tuple[float, float]:
 
 
 _HIP_RANGE_CACHE: dict[str, tuple[float, float]] = {}
+_KNEE_RANGE_CACHE: dict[str, tuple[float, float]] = {}
 
 
 def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:

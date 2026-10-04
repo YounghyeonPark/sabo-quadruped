@@ -89,7 +89,12 @@ PRESETS = {
     # ``level`` fractional: the trot already runs near the servo stall, so it gets
     # only partial leveling authority — enough to roughly halve its roll without
     # the depth trim adding to peak torque.
-    "trot":  dict(stride=34.0, step_h=12.0, cycle=0.8, duty=0.5, phase=_DIAGONAL, settle=0.0,
+    # step_h 12 -> 8: at 12 the swing folded the REAR knee to 125.3 deg, and the limb
+    # runs out at 123 -- the thigh and the shank share material past that (see
+    # params.KNEE_FOLD_LIMIT). The joint limit then clipped the command mid-stride and
+    # the saturation showed up as roll: 5.1 deg p-p against the walk's 2.8. At 8 the
+    # rear peaks at 121.6 and nothing saturates. It costs 4 mm of ground clearance.
+    "trot":  dict(stride=34.0, step_h=8.0, cycle=0.8, duty=0.5, phase=_DIAGONAL, settle=0.0,
                   level=0.5),
 }
 

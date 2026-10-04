@@ -47,6 +47,8 @@ numbers here; no other file changes.
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 
 # --------------------------------------------------------------------- bus params
@@ -119,13 +121,15 @@ class LedEye:
 # Mirror cad/params.py so a joint can never be driven past a mechanical stop.
 LIM_HIP = (-2.6, 2.6)
 LIM_KNEE = (0.0, 2.6)             # generic default
-# Per-leg knee caps = each leg's real four-bar reach (see cad/params FRONT/REAR
-# ['lim_knee']). The rear folds deeper than the front (cat hindlimb > forelimb).
+# Per-leg knee caps. These were each leg's four-bar REACH -- 2.62 / 2.79 rad -- and
+# that is what the linkage can drive, not what the limb can do: swept against each
+# other the thigh and the shank are clear at 123 deg and share material at 124, on both
+# legs. cad/params.KNEE_FOLD_LIMIT caps both at 120 deg now, and these mirror it.
 # NOTE(four-bar): the STS3215 drives the knee *crank*; the four-bar linkage
-# converts crank angle → knee angle, so the servo count here is the crank-side
-# command. Re-measure the crank→knee ratio when calibrating the physical leg.
-LIM_KNEE_FRONT = (0.0, 2.62)     # 150.1 deg
-LIM_KNEE_REAR = (0.0, 2.79)      # 159.9 deg
+# converts crank angle -> knee angle, so the servo count here is the crank-side
+# command. Re-measure the crank->knee ratio when calibrating the physical leg.
+LIM_KNEE_FRONT = (0.0, math.radians(123.0))   # fold-limited; was 150.1 by reach
+LIM_KNEE_REAR = (0.0, math.radians(123.0))    # fold-limited; was 159.9 by reach
 LIM_WAIST = (-0.45, 0.65)
 LIM_HEAD_PAN = (-1.4, 1.4)    # ±~80°; head-pan not in params.py, chosen for FOV
 LIM_HEAD_PITCH = (-0.7, 0.7)  # nod + camera-pitch gimbal

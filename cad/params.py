@@ -382,10 +382,33 @@ def leg_geom(leg: str) -> dict:
     return FRONT if is_front(leg) else REAR
 
 
+# How far the knee may fold before the THIGH and the SHANK run into each other. The
+# per-leg caps below are the four-bar's reach; nothing in them knows whether the two
+# segments actually clear. They do not: swept against each other they are clear at 123
+# deg and share material at 124, on both legs, while the caps allow 150/160 and the loaf
+# pose commands 144.5/155.1. The loaf, as published, was not a pose the limb could strike.
+#
+# Pinned rather than computed because params may not build CAD -- it is what CAD is built
+# FROM. tests/test_geometry.py re-measures it against the real segments, so the number
+# cannot drift away from the geometry without failing.
+KNEE_FOLD_LIMIT = math.radians(123.0)   # the measured clear angle, with no margin
+# No margin, deliberately. 120 deg looked like prudence and was not: the rear leg
+# needs 123.4 deg to WALK and 125.3 to TROT, so a 3 deg cushion clipped both gaits
+# and cost trot its roll (3.0 -> 6.5 deg p-p) and a third of its torque headroom
+# (35 -> 50% of stall). At 123 the walk is untouched; the trot is still asking for
+# 2.3 deg the limb does not have, which is a REAL constraint of the leg, not a
+# number to pad -- see the note on the fold in tests/test_geometry.py.
+
+
 def leg_knee_limit(leg: str) -> tuple[float, float]:
-    """Per-leg knee JOINT soft limit (rad), from the leg's real four-bar reach.
-    Falls back to the generic LIM_KNEE if a leg dict omits ``lim_knee``."""
-    return leg_geom(leg).get("lim_knee", LIM_KNEE)
+    """Per-leg knee JOINT soft limit (rad): the four-bar's reach, capped by the fold.
+
+    The reach figure says what the LINKAGE can drive. ``KNEE_FOLD_LIMIT`` says what the
+    LIMB can do without the thigh and the shank sharing material, and the second is the
+    binding one -- it arrives 27 deg earlier on the front leg and 37 on the rear.
+    """
+    lo, hi = leg_geom(leg).get("lim_knee", LIM_KNEE)
+    return (lo, min(hi, KNEE_FOLD_LIMIT))
 
 
 def leg_plane_sign(leg: str) -> int:
