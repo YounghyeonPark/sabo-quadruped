@@ -249,12 +249,18 @@ def _neck_port() -> Part:
     opening, unattached to anything -- so the taper ahead of ``NECK_MOUTH_X`` goes with it
     and the skin ends in a clean rim instead.
     """
+    from cad.parts.body import _head_socket
     from cad.parts.neck import neck_sweep
 
     a = max(a for _x, a, _b in FORE_STATIONS)
     b = max(b for _x, _a, b in FORE_STATIONS)
     mouth = Pos(NECK_MOUTH_X + a, 0, 0) * Box(2 * a, 2 * (a + 10.0), 2 * (b + 10.0))
-    return neck_sweep() + mouth
+    # ...and the SAME ball the ribcage is hollowed by. The head's centre is at the
+    # torso's nose, so its rear hemisphere rests on the shoulders: without this the head
+    # sat 1113 mm3 into the skin while standing still. The ball, not the head's sweep --
+    # that is the cut that once left this skin in 29 pieces -- and the same compromise
+    # body._head_socket documents for the frame applies here.
+    return neck_sweep() + mouth + _head_socket()
 
 
 TAIL_MOUTH_X = 84.0 * P.SCALE      # the skin ends here and the tail comes out
