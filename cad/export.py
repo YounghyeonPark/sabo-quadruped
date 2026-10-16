@@ -41,7 +41,7 @@ COUNTS = {
     "crank_F": 2, "crank_R": 2, "pushrod_F": 2, "pushrod_R": 2,
     "tail_crank": 1, "tail_pushrod": 1,
     "neck_column": 1, "pan_crank": 1, "pan_pushrod": 1,
-    "shell_fore": 1, "shell_aft": 1, "shell_head": 1,
+    "shell_fore": 1, "shell_aft": 1,
     "fair_upper_F": 2, "fair_lower_F": 2, "fair_upper_R": 2, "fair_lower_R": 2,
 }
 

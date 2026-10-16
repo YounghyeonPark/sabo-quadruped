@@ -15,18 +15,28 @@ from cad.parts import fasteners as F
 
 
 def head() -> Part:
-    R = P.HEAD_R
-    shell = Sphere(R) - Sphere(R - P.SHELL_T)          # hollow
-    # muzzle bump forward + slightly down
-    shell += Pos(R * 0.7, 0, -6) * Sphere(R * 0.42)
+    """The head: ONE printed part, the face outside and the gimbal's structure inside.
 
-    # big LED-eye sockets bored from the front (baby-schema: large, low-set)
-    for s in (+1, -1):
-        eye = Pos(R * 0.55, s * P.EYE_SPACING / 2, -4) * (
-            Rot(0, 90, 0) * Cylinder(P.EYE_R, R))       # bore along x
-        shell -= eye
-    # front camera bore between/below the eyes
-    shell -= Pos(R * 0.6, 0, -16) * (Rot(0, 90, 0) * Cylinder(P.CAM_R, R))
+    There used to be two. This function drew a plain sphere carrying the gimbal -- the
+    pitch servo boss, the neck stub and its inserts, the ear pads -- and shell.py drew a
+    second skull, the baby-schema face with every sensor port in it, at the same centre
+    and the same radius. They shared 39 711 mm3 and both were in the print manifest, so
+    the head could not be built: one had the mounts and the other had the sensors. The
+    render only ever drew the second, which is why it looked fine.
+
+    They disagreed about more than shape, too. This one bored a single camera between
+    two LED eye sockets; the face carried a camera aperture behind EACH eye. The
+    hardware decision is stereo (docs/edge_ai_hardware.md: "one wide-FOV camera per eye
+    socket"), so the face's ports are the ones that survive.
+
+    The ears are the BOLTED pair, on the pads below, not the face's sculpted ones: those
+    are the ears the kinematics, the manifest and the insert count already track, and
+    the two sets were 22 mm apart, so building both would have given the cat four.
+    """
+    from cad.parts.shell import _face_ports, _head_cavity, _head_outer, _sense_ports
+
+    R = P.HEAD_R
+    shell = _head_outer(ears=False) - _head_cavity(P.SHELL_T)
 
     # gimbal mount stub underneath — bolts to the head_pitch yoke
     shell += Pos(0, 0, -R + 4) * Box(22, 22, 12)
@@ -73,9 +83,13 @@ def head() -> Part:
                                         2 * P.pitch_yoke_y() + P.PITCH_YOKE_ARM + 4,
                                         R * 1.2)
 
-    # sensor-cable pass-through: routes the front-camera / mic wiring from the head
-    # cavity down through the stub to the neck → Jetson bay.
+    # sensor-cable pass-through: routes the camera / mic wiring from the head cavity down
+    # through the stub to the neck and on to the Jetson bay.
     shell -= Pos(0, 0, -R + 4) * F.wire_hole("sensor", "z", 34)
+    # ...and the sensors themselves: stereo camera behind each eye, the two ToFs, the mic
+    # ports at the ear bases, the e-nose intake and the speaker grille.
+    shell -= _face_ports()
+    shell -= _sense_ports()
     return shell - cut
 
 

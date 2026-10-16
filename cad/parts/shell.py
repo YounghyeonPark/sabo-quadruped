@@ -369,7 +369,7 @@ def body_shell_aft(ports: bool = True) -> Part:
 
 
 # --------------------------------------------------------------------------- head
-def _head_outer() -> Part:
+def _head_outer(ears: bool = True) -> Part:
     R = P.HEAD_R
     skull = _ellipsoid(R * 0.98, R, R * 0.98)                 # big round skull
     skull += Pos(0, 0, R * 0.35) * _ellipsoid(R*0.7, R*0.8, R*0.5)  # tall forehead (baby schema)
@@ -379,10 +379,11 @@ def _head_outer() -> Part:
     for s in (1, -1):                                          # big low-set eye recesses
         skull -= Pos(R*0.78, s*R*0.40, -R*0.02) * _ellipsoid(R*0.18, R*0.22, R*0.26)
     skull += Pos(R*1.05, 0, -R*0.30) * _ellipsoid(R*0.12, R*0.16, R*0.12)  # nose
-    for s in (1, -1):                                          # cat ears
-        ear = _ellipsoid(R*0.10, R*0.34, R*0.42)
-        ear = Pos(-R*0.15, s*R*0.5, R*0.95) * (Rot(s*22, 0, 0) * ear)
-        skull += ear
+    if ears:
+        for s in (1, -1):                                      # cat ears
+            ear = _ellipsoid(R*0.10, R*0.34, R*0.42)
+            ear = Pos(-R*0.15, s*R*0.5, R*0.95) * (Rot(s*22, 0, 0) * ear)
+            skull += ear
     return skull
 
 
@@ -454,12 +455,9 @@ def _sense_ports() -> Part:
     return ports
 
 
-def head_shell() -> Part:
-    R = P.HEAD_R
-    shell = _head_outer() - _head_cavity(P.SHELL_T)
-    shell -= _face_ports()
-    shell -= _sense_ports()
-    return shell
+# There is no head_shell() any more. It drew the face as a second skull at the same
+# centre and radius as head.head(), and both were printed. Its face and its sensor
+# ports (the helpers above) now go into head() itself.
 
 
 def waist_collar() -> Part:
@@ -495,7 +493,11 @@ def full_cat() -> Part:
         parts += [base*Ta*pl["hip_bracket"], base*Th*pl["upper"],
                   base*Tk*pl["lower"], base*Tan*pl["foot"]]
 
-    parts.append(Pos(P.FORE_LEN + P.NECK_L*0.3, 0, lift + P.BODY_H*0.35) * head_shell())
+    # the head, where the gimbal actually puts it -- this preview used to place the old
+    # face skin at a station of its own, which was not where the head is
+    from cad.parts.head import head
+    hx, _, hz = P.head_centre()
+    parts.append(Pos(hx, 0, lift + hz) * head())
     parts.append(Pos(-P.AFT_LEN + 6, 0, lift + P.BODY_H*0.3) * (Rot(0, -40, 0) * tail()))
 
     fused = parts[0]
@@ -505,8 +507,7 @@ def full_cat() -> Part:
 
 
 if __name__ == "__main__":
-    for name, fn in (("fore", body_shell_fore), ("aft", body_shell_aft),
-                     ("head", head_shell)):
+    for name, fn in (("fore", body_shell_fore), ("aft", body_shell_aft)):
         vol = fn().volume
         mass = vol * 1e-9 * P.EFFECTIVE_DENSITY * 1000.0
         print(f"{name:>4} shell vol: {vol:10.0f} mm^3   plastic mass: {mass:6.1f} g")

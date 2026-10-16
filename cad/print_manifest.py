@@ -50,7 +50,10 @@ PRINT_META: dict[str, dict] = {
         orient="neck stub down; OR split at the equator into two bowls",
         support=True, split="recommended: horizontal equator split (2 bowls, bond)",
         material="PLA", perimeters=3, infill=0.10, inserts=8,
-        notes="hollow skull; 4x M2 neck-stub + 2x2 M2 ear pads; pitch servo boss inside; muzzle bump + eye/cam bores need support if not split"),
+        notes="the baby-schema face outside, the gimbal inside: pitch servo boss + 4 braces, "
+              "4x M2 neck-stub + 2x2 M2 ear pads; stereo camera behind each eye, 2x ToF, "
+              "mic ports, e-nose + speaker grilles. Was two parts (head + shell_head) "
+              "drawn in the same place"),
     "ear": dict(
         orient="lay the blade flat on the bed (largest face down)",
         support=False, split="no", material="PLA", perimeters=3, infill=0.20, inserts=0,
@@ -118,11 +121,6 @@ PRINT_META: dict[str, dict] = {
         support=True, split="recommended: sagittal L/R — the haunch overhangs the ports",
         material="PLA", perimeters=2, infill=0.08, inserts=0,
         notes="2.4 mm skin; leg ports + tail mouth + belly notch at the spine seam"),
-    "shell_head": dict(
-        orient="neck mouth down, muzzle up",
-        support=True, split="recommended: horizontal equator split (2 bowls, bond)",
-        material="PLA", perimeters=2, infill=0.08, inserts=0,
-        notes="2.4 mm skin; eye/cam apertures, nose + mouth grilles, mic ports"),
     # ---- limb fairings (cad/parts/fairing.py) --------------------------------
     # The moving half of the skin: a static shell cannot close the flank the laterally-
     # mounted knee servo sweeps open, so these turn with the limb instead.
