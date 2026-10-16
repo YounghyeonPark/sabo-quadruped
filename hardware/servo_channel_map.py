@@ -129,7 +129,7 @@ LIM_KNEE = (0.0, 2.6)             # generic default
 # converts crank angle -> knee angle, so the servo count here is the crank-side
 # command. Re-measure the crank->knee ratio when calibrating the physical leg.
 LIM_KNEE_FRONT = (0.0, math.radians(123.0))   # fold-limited; was 150.1 by reach
-LIM_KNEE_REAR = (0.0, math.radians(123.0))    # fold-limited; was 159.9 by reach
+LIM_KNEE_REAR = (0.0, math.radians(121.0))    # fold-limited; was 159.9 by reach
 LIM_WAIST = (-0.45, 0.65)
 LIM_HEAD_PAN = (-1.4, 1.4)    # ±~80°; head-pan not in params.py, chosen for FOV
 LIM_HEAD_PITCH = (-0.7, 0.7)  # nod + camera-pitch gimbal

@@ -298,7 +298,7 @@ def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:
     # the ribcage, in a part the interference suite had just passed.
     from cad.parts.leg import knee_boss_envelope
 
-    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(P.leg_geom(leg)["upper"], s)
+    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(P.leg_geom(leg)["upper"], s, leg)
     boss = Pos(cx, cy, cz) * _rounded_box(dx + 2.0, dy + 2.0, dz + 2.0, 5.0)
 
     hip0, _ = stance_angles(leg)

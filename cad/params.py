@@ -162,6 +162,33 @@ KNEE_DRIVE = "fourbar"     # 'direct' | 'fourbar' (mechanical realisation)
 FOURBAR = _scale_lengths(dict(ground=38.0, crank=27.0, coupler=50.0, rocker=18.0,
                               rocker_offset=0.0, crank_window=(-20.0, 81.0)),
                          ("ground", "crank", "coupler", "rocker"))
+# The REAR knee gets its own four-bar, and only two numbers move. The rear thigh is 3.5 mm
+# shorter than the front (64 vs 67.5), and sharing the front's 38 mm ground left the rear
+# knee servo 3.5 mm nearer the hip -- 26 mm against 29.5. That housing swings through the
+# hip bracket's foot: 60-134 mm3 of plastic, which a relief can take, and 14.7 mm3 of the
+# aft mount screw's HEAD, which it cannot. No head style clears (a flush countersink still
+# meets it by 3.1), flipping which way the servo body runs changes nothing (the hip turns
+# about y, so +x and -x sweep the same ring), and the screw cannot move (clearing the sweep
+# needs x >= -4.1, clearing the axle bore needs x <= -6.45). So the housing moves instead.
+#
+# How far is a trade, because the thigh is short: moving the housing AWAY from the hip
+# moves it TOWARD the knee, where the folding shank meets its outboard face. Measured:
+#     ground 38.0  housing 26.0 from hip  screw head 14.7 mm3   fold clear to 123 deg
+#     ground 37.0           27.0                     1.6                     122
+#     ground 36.5           27.5                     0.0                     121
+#     ground 34.5           29.5                     0.0                     ~119
+# 36.5 is the shortest move that clears the screw outright. The front's links do not close
+# there -- their window collapses -- but crank 27 and rocker 18 DO with a 48.5 mm coupler:
+# ROM 130.9 deg, transmission angle 40.8..140. The crank and the rocker are therefore the
+# same parts on both ends; only the pushrod is shorter.
+FOURBAR_REAR = _scale_lengths(dict(ground=36.5, crank=27.0, coupler=48.5, rocker=18.0,
+                                   rocker_offset=0.0, crank_window=(-21.0, 82.0)),
+                              ("ground", "crank", "coupler", "rocker"))
+
+
+def fourbar(leg: str) -> dict:
+    """The knee four-bar for this leg ('FL', 'RR', ... or just 'F' / 'R')."""
+    return FOURBAR_REAR if leg[0] == "R" else FOURBAR
 
 # leg mounts — coordinates are in each half's OWN frame (fore/aft origin at the
 # waist; fore geometry extends +x, aft extends -x).
@@ -391,13 +418,12 @@ def leg_geom(leg: str) -> dict:
 # Pinned rather than computed because params may not build CAD -- it is what CAD is built
 # FROM. tests/test_geometry.py re-measures it against the real segments, so the number
 # cannot drift away from the geometry without failing.
-KNEE_FOLD_LIMIT = math.radians(123.0)   # the measured clear angle, with no margin
-# No margin, deliberately. 120 deg looked like prudence and was not: the rear leg
-# needs 123.4 deg to WALK and 125.3 to TROT, so a 3 deg cushion clipped both gaits
-# and cost trot its roll (3.0 -> 6.5 deg p-p) and a third of its torque headroom
-# (35 -> 50% of stall). At 123 the walk is untouched; the trot is still asking for
-# 2.3 deg the limb does not have, which is a REAL constraint of the leg, not a
-# number to pad -- see the note on the fold in tests/test_geometry.py.
+KNEE_FOLD_LIMIT = {"F": math.radians(123.0),    # measured clear angle, no margin
+                   "R": math.radians(121.0)}    # ...the rear's own, after FOURBAR_REAR
+# No margin, deliberately: 120 deg looked like prudence and clipped both gaits, costing
+# trot its roll (3.0 -> 6.5 deg p-p) and a third of its torque headroom. Per END because
+# the rear's four-bar moved its knee servo 1.5 mm toward the knee to clear a mount screw,
+# and the folding shank now meets that housing 2 deg sooner.
 
 
 def mount_screw_xs(leg: str) -> list[float]:
@@ -418,7 +444,7 @@ def leg_knee_limit(leg: str) -> tuple[float, float]:
     binding one -- it arrives 27 deg earlier on the front leg and 37 on the rear.
     """
     lo, hi = leg_geom(leg).get("lim_knee", LIM_KNEE)
-    return (lo, min(hi, KNEE_FOLD_LIMIT))
+    return (lo, min(hi, KNEE_FOLD_LIMIT[leg[0]]))
 
 
 def leg_plane_sign(leg: str) -> int:

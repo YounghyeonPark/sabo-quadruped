@@ -146,7 +146,7 @@ def _seg_stations(leg: str, seg: str) -> list:
 
     if seg == "upper":
         (_cx, _cy, bz), (_dx, _dy, bdz) = knee_boss_envelope(
-            P.leg_geom(leg)["upper"], P.leg_plane_sign(leg))
+            P.leg_geom(leg)["upper"], P.leg_plane_sign(leg), leg)
         # widened by one slab: the stations sitting on the slab boundaries just outside
         # the housing still carry ITS bounds -- they take the maximum over the slab below
         # and the slab above -- so charging them the sharp-corner allowance put the full
@@ -193,7 +193,7 @@ def _boss_box(leg: str) -> Part:
     from cad.parts.leg import knee_boss_envelope
 
     (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(
-        P.leg_geom(leg)["upper"], P.leg_plane_sign(leg))
+        P.leg_geom(leg)["upper"], P.leg_plane_sign(leg), leg)
     c = P.FAIRING_CLEAR
     return Pos(cx, cy, cz) * Box(dx + 2 * c, dy + 2 * c, dz + 2 * c)
 

@@ -135,7 +135,7 @@ def _builders() -> dict:
         # it here would tally every part of the leg once per part of the leg.
         def _lower(kind):
             leg = "FL" if kind == "F" else "RL"
-            return lambda: lower_leg(P.leg_geom(leg)["lower"], stance_angles(leg)[1])
+            return lambda: lower_leg(P.leg_geom(leg)["lower"], stance_angles(leg)[1], leg)
 
         builders = {
             "torso_fore": torso_fore, "torso_aft": torso_aft, "head": head,
@@ -145,12 +145,12 @@ def _builders() -> dict:
             "hipbr_R_L": lambda: hip_bracket(+1, P.REAR["hip_off"]),
             "hipbr_R_R": lambda: hip_bracket(-1, P.REAR["hip_off"]),
             "upper_F": lambda: upper_leg(P.FRONT["upper"], +1),
-            "upper_R": lambda: upper_leg(P.REAR["upper"], +1),
+            "upper_R": lambda: upper_leg(P.REAR["upper"], +1, "RL"),
             "lower_F": _lower("F"), "lower_R": _lower("R"),
             "foot_F": lambda: foot_seg(P.FRONT["foot"]),
             "foot_R": lambda: foot_seg(P.REAR["foot"]),
-            "crank_F": crank, "crank_R": crank,
-            "pushrod_F": pushrod, "pushrod_R": pushrod,
+            "crank_F": crank, "crank_R": lambda: crank(1, "RL"),
+            "pushrod_F": pushrod, "pushrod_R": lambda: pushrod(1, "RL"),
             "tail_crank": tail_crank, "tail_pushrod": tail_pushrod,
             "neck_column": neck_column, "pan_crank": pan_crank,
             "pan_pushrod": pan_pushrod,

@@ -74,21 +74,21 @@ LINK_W = 11.0            # link cross width (local Z)
 HORN_R = SERVO.horn_dia / 2.0
 
 
-def _fourbar() -> FourBar:
-    fb = P.FOURBAR
+def _fourbar(leg: str = "FL") -> FourBar:
+    fb = P.fourbar(leg)
     return FourBar(d=fb["ground"], r2=fb["crank"], r3=fb["coupler"],
                    r4=fb["rocker"], rocker_offset=fb["rocker_offset"])
 
 
-def stance_linkage():
+def stance_linkage(leg: str = "FL"):
     """The verified four-bar drawn at its **mid-window** (stance) crank pose, in the
     thigh frame with the knee at the fourbar origin. Returns ``(t2_mid_rad, pts)``
     where ``pts`` = O2/C/R/O4 (mm) with the exact FOURBAR lengths. Mid-window keeps
     stance well away from the transmission-angle extremes (symmetric ROM headroom).
     Used both to weld the rocker (leg.py) and to pose crank+pushrod (assembly.py)."""
-    lo, hi = P.FOURBAR["crank_window"]
+    lo, hi = P.fourbar(leg)["crank_window"]
     t2 = math.radians((lo + hi) / 2)
-    return t2, _fourbar().linkage_points(t2)
+    return t2, _fourbar(leg).linkage_points(t2)
 
 
 def _cyl_y(radius: float, height: float) -> Part:
@@ -165,7 +165,7 @@ def _flat_arm(length: float, r0: float, r1: float, t: float = LINK_T) -> Part:
     return hub0 + hub1 + web
 
 
-def crank(sign: int = 1) -> Part:
+def crank(sign: int = 1, leg: str = "FL") -> Part:
     """Knee-servo crank (FOURBAR['crank'] mm): mounts on the servo horn at the crank
     pivot (origin) and carries the crank–coupler pin at (crank,0,0).
 
@@ -173,7 +173,7 @@ def crank(sign: int = 1) -> Part:
     where the forked pushrod straddles it. The horn recess is on the inboard face only,
     so the L and R cranks are the same flat part printed and simply flipped over —
     ``sign`` only tells the MODEL which way round it is fitted."""
-    r = P.FOURBAR["crank"]
+    r = P.fourbar(leg)["crank"]
     t = P.CLEVIS_TONGUE_T
     body = _flat_arm(r, r0=HORN_R + 2.0, r1=PIN_R + 3.0, t=t)
     body -= F.horn_holes(axis="y", length=t + 2)                     # horn bolt circle + centre screw
@@ -183,7 +183,7 @@ def crank(sign: int = 1) -> Part:
     return body
 
 
-def pushrod(sign: int = 1) -> Part:
+def pushrod(sign: int = 1, leg: str = "FL") -> Part:
     """Rigid pushrod / coupler (FOURBAR['coupler'] mm), running in its own lane.
 
     It shares the C pin with the crank and the R pin with the rocker, and both of those
@@ -191,7 +191,7 @@ def pushrod(sign: int = 1) -> Part:
     outboard (``sign * P.FB_ROD_Y``) and both pins are shouldered; bearing counterbores
     at each end take the shoulder so the rod runs on the pin, not on the printed bore.
     Like the crank it is one flat printed part, flipped for the other side."""
-    L = P.FOURBAR["coupler"]
+    L = P.fourbar(leg)["coupler"]
     t = P.CLEVIS_ROD_T
     hub = PIN_R + 3.0
     ry = sign * P.FB_ROD_Y
@@ -203,13 +203,13 @@ def pushrod(sign: int = 1) -> Part:
     return body
 
 
-def _rocker_arm(stance_knee: float) -> Part:
+def _rocker_arm(stance_knee: float, leg: str = "FL") -> Part:
     """Rocker (FOURBAR['rocker'] mm) rigidly welded to the lower leg at the knee
     (origin). Its weld angle is set so that, when the shank is posed at this leg's
     stance knee, the rocker tip lands exactly on the four-bar's R point (loop
     closes with the verified 50 mm coupler)."""
-    r = P.FOURBAR["rocker"]
-    _, pts = stance_linkage()
+    r = P.fourbar(leg)["rocker"]
+    _, pts = stance_linkage(leg)
     rx, rz = pts["R"]                         # fourbar (x_fb, y_fb) -> thigh (x, z) rel. knee
     k = stance_knee                           # the knee pose applies Rot_y(+k), so pre-weld
     lx = rx * math.cos(k) + rz * math.sin(k)  # the rocker by Rot_y(-k): local = Rot_y(-k).R
@@ -296,7 +296,7 @@ KNEE_BOSS_LONG_AXIS = "x"      # fore-aft: keeps the housing's far corner close 
 KNEE_BOSS_SHAFT_END = +1
 
 
-def knee_boss_envelope(length: float, sign: int) -> tuple[tuple, tuple]:
+def knee_boss_envelope(length: float, sign: int, leg: str = "FL") -> tuple[tuple, tuple]:
     """(centre, (dx, dy, dz)) of the knee-servo housing, in the thigh's own frame."""
     l, w, h = SERVO.pocket
     wall = P.HIP_BOSS_WALL
@@ -304,12 +304,12 @@ def knee_boss_envelope(length: float, sign: int) -> tuple[tuple, tuple]:
     ecc = SERVO.shaft_offset * KNEE_BOSS_SHAFT_END
     ex, ez = (ecc, 0.0) if KNEE_BOSS_LONG_AXIS == "x" else (0.0, ecc)
     dy = h + 2 * wall
-    z = -(length - P.FOURBAR["ground"])
+    z = -(length - P.fourbar(leg)["ground"])
     return ((ex, -sign * (P.FB_HORN_Y + dy / 2.0), z + ez),
             (dx + 2 * wall, dy, dz + 2 * wall))
 
 
-def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
+def _crank_pivot_boss(strut: Part, length: float, sign: int, leg: str = "FL") -> Part:
     """Relocate the knee servo UP the thigh: a boss at ``ground`` mm above the knee
     housing the knee servo whose output IS the crank pivot (shaft on Y at the thigh
     centreline). The body is tucked INBOARD via ``_servo_pack`` so the crank boss no
@@ -317,7 +317,7 @@ def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
 
     Its orientation is set by ``KNEE_BOSS_LONG_AXIS``; see the note there for why it
     lies fore-aft, which is not the reason the code used to give."""
-    z = -(length - P.FOURBAR["ground"])
+    z = -(length - P.fourbar(leg)["ground"])
     # shift the crank servo body ~6 mm DOWN the thigh (shaft stays on the crank pivot)
     # so its top clears the hip servo boss centred 29.5 mm above it.
     # NOTE the servo can only be offset along its OWN long axis (``shaft_end`` picks which
@@ -330,7 +330,7 @@ def _crank_pivot_boss(strut: Part, length: float, sign: int) -> Part:
     return strut + boss - cut
 
 
-def _thigh_channel(strut: Part, length: float, sign: int = 1) -> Part:
+def _thigh_channel(strut: Part, length: float, sign: int = 1, leg: str = "FL") -> Part:
     """Open the thigh into a forward-facing CHANNEL.
 
     This is what makes the four-bar buildable: the crank, the pushrod blades, the rocker
@@ -342,11 +342,11 @@ def _thigh_channel(strut: Part, length: float, sign: int = 1) -> Part:
     lo, hi = P.clevis_slot(rod=True)
     w = hi - lo
     yc = sign * (lo + hi) / 2.0
-    z0 = -(length - P.FOURBAR["ground"])              # crank pivot
+    z0 = -(length - P.fourbar(leg)["ground"])              # crank pivot
     # the slot has to clear the crank over its WHOLE window, not just the stance pose:
     # at the top of the window the crank tip swings up to nearly the hip.
-    _, hi_deg = P.FOURBAR["crank_window"]
-    reach = P.FOURBAR["crank"] * math.sin(math.radians(hi_deg)) + PIN_R + 3.0 + 2.0
+    _, hi_deg = P.fourbar(leg)["crank_window"]
+    reach = P.fourbar(leg)["crank"] * math.sin(math.radians(hi_deg)) + PIN_R + 3.0 + 2.0
     top = min(0.0, z0 + reach)
     bot = -length - 14.0
     strut -= Pos(24.0, yc, (top + bot) / 2.0) * Box(48.0, w, top - bot)
@@ -566,7 +566,7 @@ def _fairing_inserts(part: Part, length: float, seg: str, sign: int = 1) -> Part
     return part
 
 
-def upper_leg(length: float, sign: int = 1) -> Part:
+def upper_leg(length: float, sign: int = 1, leg: str = "FL") -> Part:
     """Thigh — a forward-opening CHANNEL that houses the whole four-bar.
 
     The knee servo sits at the crank pivot up the thigh (the knee itself is a passive
@@ -576,14 +576,14 @@ def upper_leg(length: float, sign: int = 1) -> Part:
     half, yoff = P.thigh_profile()
     strut = Pos(0, sign * yoff, 0) * _segment(length, knee_servo=False,
                                               rp=(7.6, half), rd=(6.2, half), lighten=False)
-    strut = _thigh_channel(strut, length, sign)
-    strut = _crank_pivot_boss(strut, length, sign)
+    strut = _thigh_channel(strut, length, sign, leg)
+    strut = _crank_pivot_boss(strut, length, sign, leg)
     strut = _fork_seat(strut, -length, r=KNEE_FORK_R, open_dir=-1)   # knee fork takes the shank
     strut = _hip_horn_mount(strut, sign)               # driven out from the hip drive axle
     return _fairing_inserts(strut, length, "upper", sign)
 
 
-def lower_leg(length: float, stance_knee: float) -> Part:
+def lower_leg(length: float, stance_knee: float, leg: str = "FL") -> Part:
     """Shank — a TONGUE at the knee (into the thigh's fork) and a FORK at the ankle.
 
     In the four-bar realisation the only knee servo lives on the thigh crank boss and the
@@ -591,7 +591,7 @@ def lower_leg(length: float, stance_knee: float) -> Part:
     welded on at the knee, in the same in-plane lane as the tongue, so the whole shank
     top is one 7 mm blade that drops into the thigh channel."""
     strut = _segment(length, knee_servo=False, rp=(7.2, 8.2), rd=(5.8, 7.2), lighten=True)
-    strut = strut + _rocker_arm(stance_knee)          # rocker welded on the shank at the knee
+    strut = strut + _rocker_arm(stance_knee, leg)          # rocker welded on the shank at the knee
     # the blade has to stay narrow for as long as the pushrod runs beside it in the channel
     strut = _tongue_seat(strut, 0.0, r=KNEE_TONGUE_R, open_dir=+1, reach=KNEE_BLADE_L)
     strut = _fork_seat(strut, -length, r=ANKLE_FORK_R, open_dir=-1)  # ankle fork takes the foot
@@ -629,7 +629,7 @@ def _bracket_boss_relief(leg: str) -> Part:
 
     g = P.leg_geom(leg)
     s = P.leg_plane_sign(leg)
-    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(g["upper"], s)
+    (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(g["upper"], s, leg)
     c = 1.0                                         # running clearance
     boss = Pos(cx, cy, cz) * _rounded_box(dx + 2 * c, dy + 2 * c, dz + 2 * c, BOSS_CORNER_R)
     hip0 = stance_angles(leg)[0]
@@ -667,10 +667,10 @@ def leg_parts(leg: str) -> dict[str, Part]:
         "hip_bracket": hip_bracket(s, g["hip_off"], x_shift, leg=leg)
                        - _bracket_boss_relief(leg),
         "axle": hip_axle(g["hip_off"]),
-        "upper": upper_leg(g["upper"], s),
-        "crank": crank(s),
-        "pushrod": pushrod(s),
-        "lower": lower_leg(g["lower"], knee),
+        "upper": upper_leg(g["upper"], s, leg),
+        "crank": crank(s, leg),
+        "pushrod": pushrod(s, leg),
+        "lower": lower_leg(g["lower"], knee, leg),
         "foot": foot_seg(g["foot"]),
     }
     _LEG_PARTS_CACHE[leg] = out
