@@ -29,7 +29,7 @@ from cad.parts.head import head
 from cad.parts.neck import neck_column, pan_crank, pan_pushrod
 from cad.parts.leg import crank, leg_parts, pushrod, stance_linkage
 from cad.parts.fairing import shank_fairing, thigh_fairing
-from cad.parts.shell import body_shell_aft, body_shell_fore, head_shell
+from cad.parts.shell import body_shell_aft, body_shell_fore
 from cad.parts.tail import linkage_transforms as tail_linkage_transforms
 from cad.parts.tail import tail, tail_crank, tail_pushrod
 from cad.servo import DEFAULT as SERVO
@@ -178,14 +178,16 @@ PRINTABLE = _LazyParts({
     "foot_R": _leg("RL", "foot"),
     # four-bar knee linkage — crank + pushrod share FOURBAR, so F/R are identical
     # geometry, but listed per leg-type per the build convention.
-    "crank_F": crank, "crank_R": crank,
-    "pushrod_F": pushrod, "pushrod_R": pushrod,
+    "crank_F": crank, "crank_R": lambda: crank(1, "RL"),
+    # the rear pushrod is SHORTER (params.FOURBAR_REAR: 46 mm against 50) -- the one part
+    # the rear's own four-bar actually changes
+    "pushrod_F": pushrod, "pushrod_R": lambda: pushrod(1, "RL"),
     # THE SKIN. It used to be exported as shell_fore/aft/head.stl -- files anyone would
     # print -- while sitting outside this table, so it carried none of the manifest's
     # checks and nobody noticed it had no opening for the legs, the neck, the tail or the
     # waist, and shared solid material with all four.
     "shell_fore": body_shell_fore, "shell_aft": body_shell_aft,
-    "shell_head": head_shell,
+    # no "shell_head": the face and the gimbal are one printed part now -- "head" above.
     # ...and the moving half of it. A static skin cannot close the flank the knee servo
     # sweeps open, so the scapula/haunch covers turn with the thigh (cad/parts/fairing.py).
     "fair_upper_F": lambda: thigh_fairing("FL"), "fair_lower_F": lambda: shank_fairing("FL"),
@@ -208,7 +210,7 @@ def _linkage_transforms(leg):
     four-bar at the mid-window stance pose. The fourbar frame (knee at origin) maps
     identically into the thigh frame with the knee at (0,0,-upper)."""
     upper = P.leg_geom(leg)["upper"]
-    t2, pts = stance_linkage()
+    t2, pts = stance_linkage(leg)
     loc = lambda p: (p[0], 0.0, -upper + p[1])            # (x_fb, y_fb) -> (x, 0, z)
     O2, C, R = loc(pts["O2"]), loc(pts["C"]), loc(pts["R"])
     T_crank = Pos(*O2) * Rotation(0, -math.degrees(t2), 0)   # +x arm -> crank tip C

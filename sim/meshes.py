@@ -29,14 +29,16 @@ MESH_DIR = os.path.join(os.path.dirname(__file__), "meshes")
 # The limbs are in here too. A static shell cannot close the flank -- the knee servo lies
 # laterally and sweeps it open as the hip works -- so the thigh and shank carry their own
 # covers (cad/parts/fairing.py), and the render only reads as a cat if they are drawn.
-SKIN_OVER = {"torso_fore": "skin_fore", "torso_aft": "skin_aft", "head_pitch": "skin_head"}
+# The head is drawn from its OWN mesh (the head link's part is the whole head now),
+# so it is not in here.
+SKIN_OVER = {"torso_fore": "skin_fore", "torso_aft": "skin_aft"}
 SKIN_OVER.update({f"{leg}_hip": f"fair_{leg}_upper" for leg in P.LEGS})
 SKIN_OVER.update({f"{leg}_knee": f"fair_{leg}_lower" for leg in P.LEGS})
 
 
 # link/root name -> the PRINTABLE key of the skin bolted to it. Same mapping as
 # SKIN_OVER, kept beside it so the mass model and the visual model cannot drift apart.
-SKIN_PART = {"torso_fore": "shell_fore", "torso_aft": "shell_aft", "head_pitch": "shell_head"}
+SKIN_PART = {"torso_fore": "shell_fore", "torso_aft": "shell_aft"}
 SKIN_PART.update({f"{leg}_hip": f"fair_upper_{leg[0]}" for leg in P.LEGS})
 SKIN_PART.update({f"{leg}_knee": f"fair_lower_{leg[0]}" for leg in P.LEGS})
 
@@ -102,11 +104,9 @@ def ensure_meshes(force: bool = False) -> str:
     for lk in kinematics():
         _export(lk.part, lk.name)
     # skin case
-    from cad.parts.shell import (body_shell_aft, body_shell_fore, head_shell,
-                                 waist_collar)
+    from cad.parts.shell import body_shell_aft, body_shell_fore, waist_collar
     _export(body_shell_fore(), "skin_fore", tolerance=0.05)
     _export(body_shell_aft(), "skin_aft", tolerance=0.05)
-    _export(head_shell(), "skin_head", tolerance=0.05)
     _export(waist_collar(), "skin_collar", tolerance=0.05)
     from cad.parts.fairing import shank_fairing, thigh_fairing
     for leg in P.LEGS:

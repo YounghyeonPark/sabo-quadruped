@@ -89,7 +89,12 @@ PRESETS = {
     # ``level`` fractional: the trot already runs near the servo stall, so it gets
     # only partial leveling authority — enough to roughly halve its roll without
     # the depth trim adding to peak torque.
-    "trot":  dict(stride=34.0, step_h=12.0, cycle=0.8, duty=0.5, phase=_DIAGONAL, settle=0.0,
+    # step_h 12 -> 8: at 12 the swing folded the REAR knee to 125.3 deg, and the limb
+    # runs out at 123 -- the thigh and the shank share material past that (see
+    # params.KNEE_FOLD_LIMIT). The joint limit then clipped the command mid-stride and
+    # the saturation showed up as roll: 5.1 deg p-p against the walk's 2.8. At 8 the
+    # rear peaks at 121.6 and nothing saturates. It costs 4 mm of ground clearance.
+    "trot":  dict(stride=34.0, step_h=8.0, cycle=0.8, duty=0.5, phase=_DIAGONAL, settle=0.0,
                   level=0.5),
 }
 
@@ -131,25 +136,34 @@ def spine_wave(phase: float, preset: dict) -> float:
 from analysis.fourbar import FourBar as _FourBar   # noqa: E402
 
 
-def _fb() -> _FourBar:
-    fb = P.FOURBAR
+def _fb(leg: str = "FL") -> _FourBar:
+    fb = P.fourbar(leg)
     return _FourBar(d=fb["ground"], r2=fb["crank"], r3=fb["coupler"],
                     r4=fb["rocker"], rocker_offset=fb["rocker_offset"])
 
 
-# crank↔knee_fb table, sorted ascending in knee_fb for interpolation
-_LO_DEG, _HI_DEG = P.FOURBAR["crank_window"]
-_LO, _HI = math.radians(_LO_DEG), math.radians(_HI_DEG)
-_KNEE_FB_MID = _fb().solve(math.radians((_LO_DEG + _HI_DEG) / 2))[1]
-_SWEEP = sorted(((kf, t2) for t2, kf, _mu in _fb().sweep(_LO, _HI, 400)),
-                key=lambda r: r[0])
-_KFB = [r[0] for r in _SWEEP]     # knee_fb (ascending)
-_CRK = [r[1] for r in _SWEEP]     # matching crank angle
+# crank<->knee_fb tables, one per END: the rear has its own four-bar (params.FOURBAR_REAR,
+# a shorter ground and coupler), so its servo-to-knee ratio is its own too. Sorted
+# ascending in knee_fb for interpolation.
+def _table(end: str) -> dict:
+    lo_deg, hi_deg = P.fourbar(end)["crank_window"]
+    lo, hi = math.radians(lo_deg), math.radians(hi_deg)
+    bar = _fb(end)
+    sweep = sorted(((kf, t2) for t2, kf, _mu in bar.sweep(lo, hi, 400)), key=lambda r: r[0])
+    return dict(lo_deg=lo_deg, hi_deg=hi_deg, lo=lo, hi=hi,
+                mid=bar.solve(math.radians((lo_deg + hi_deg) / 2))[1],
+                kfb=[r[0] for r in sweep], crk=[r[1] for r in sweep])
+
+
+_TABLE = {end: _table(end) for end in ("F", "R")}
+# front aliases, kept for the module's own report below
+_LO_DEG, _HI_DEG = _TABLE["F"]["lo_deg"], _TABLE["F"]["hi_deg"]
+_KNEE_FB_MID = _TABLE["F"]["mid"]
 
 
 def _knee_offset(leg: str) -> float:
     """OFFSET so knee_joint = knee_fb + OFFSET (from the stance/mid-window anchor)."""
-    return stance_angles(leg)[1] - _KNEE_FB_MID
+    return stance_angles(leg)[1] - _TABLE[leg[0]]["mid"]
 
 
 def _interp(xs: list, ys: list, x: float) -> float:
@@ -172,13 +186,15 @@ def knee_to_crank(leg: str, knee_joint: float) -> float:
     """Knee JOINT angle (what the gait/IK produces) → CRANK (knee-servo) angle for
     the four-bar drive. This is the transmission map the hardware knee servo uses;
     the sim keeps the knee as a direct hinge so it never calls this."""
+    t = _TABLE[leg[0]]
     knee_fb = knee_joint - _knee_offset(leg)
-    return _interp(_KFB, _CRK, knee_fb)
+    return _interp(t["kfb"], t["crk"], knee_fb)
 
 
 def crank_to_knee(leg: str, crank: float) -> float:
     """Inverse: CRANK (servo) angle → knee JOINT angle. (Feedback / telemetry.)"""
-    order = sorted(zip(_CRK, _KFB))          # ascending in crank
+    t = _TABLE[leg[0]]
+    order = sorted(zip(t["crk"], t["kfb"]))  # ascending in crank
     kf = _interp([c for c, _ in order], [k for _, k in order], crank)
     return kf + _knee_offset(leg)
 

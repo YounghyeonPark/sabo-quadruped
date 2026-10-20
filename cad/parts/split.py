@@ -126,22 +126,78 @@ def head_halves():
     surface — never bulges, always fused). The thin shell-wall annulus is the continuous
     glue seam; the pads add depth for the dowels + a flat glue land."""
     zc, h = P.HEAD_SPLIT_Z, P.HEAD_PAD_H
-    solid = head()
-    for u, v in _head_dowel_xy():
-        solid += Sphere(P.HEAD_R) & (Pos(u, v, zc) * Box(P.HEAD_PAD_XY, P.HEAD_PAD_XY, h))
-    lower = solid & _halfspace("z", False, zc)         # z < zc : eyes/cam/muzzle/stub
-    upper = solid & _halfspace("z", True, zc)          # z > zc : cranial cap
+    # The pads are cut from the head's OWN outer form, and each half is built from pieces
+    # that were cut separately and THEN joined. Both matter. The pads used to be chunks of
+    # a HEAD_R sphere, which hugged the head when the head was that sphere; it is the
+    # baby-schema face now, and a sphere-chunk's skin lies almost on the face's without
+    # lying on it. Fusing those and then cutting the fused body in half returned an EMPTY
+    # lower bowl -- the head alone cut cleanly to 49 906 mm3, the padded head to nothing.
+    #
+    # The pads also have to REACH the wall. The dowels sit at HEAD_DOWEL_R = 39 and a pad
+    # HEAD_PAD_XY wide stops at r 46.5; on the old sphere that was close enough, but the
+    # face's wall at the split height is at r 47-49, so all three pads floated in the hollow
+    # and the third touched nothing at all. They are drawn twice as wide, out past the
+    # wall, and then clipped to 0.3 mm inside the head's OUTER form: wide enough to bond,
+    # and never sharing a face with the skin they bond to (a pad that shared the outer
+    # skin exactly made the third union return the pad alone, 51 765 + 1 462 -> 1 462).
+    from cad.parts.shell import _head_cavity
 
-    # dowels: press into the lower bowl, slip in the cap (so the cap lifts off for camera work)
-    for u, v in _head_dowel_xy():
-        at = Pos(u, v, zc)
-        lower -= at * F.dowel_socket("press", "z")
-        upper -= at * F.dowel_socket("clear", "z")
-    # glue-relief ring groove in the lower bowl's rim (squeeze-out room, clear of the dowels)
+    fill = _head_cavity(0.3)
+    hd = head()
+    reach = 2 * P.HEAD_PAD_XY
+    pads = [fill & (Pos(u, v, zc) * Box(reach, reach, h)) for u, v in _head_dowel_xy()]
+    below, above = _halfspace("z", False, zc), _halfspace("z", True, zc)
+    # Each half is reduced to its ONE body before anything is added to it: the plane
+    # leaves a 455 mm3 sliver of wall loose beside the stereo eye recesses, and fusing a
+    # pad onto a half that is still two solids returned a fragment (4 690 mm3 of a bowl
+    # that is ~50 000).
+    #
+    # The pads go on in ONE fuse, not three. Each pad fuses onto the bowl correctly on its
+    # own (bowl + the -y pad = 53 806 mm3, as it should), yet chained one after another the
+    # third union returned that pad and nothing else -- 4 802 mm3 of a ~62 500 bowl, with
+    # every input valid. OCCT's general fuse takes all its arguments together and gets it
+    # right; a chain of binary fuses carries something forward that it does not.
+    lower = _largest(hd & below, "head lower bowl")    # z < zc : eyes/cam/muzzle/stub
+    upper = _largest(hd & above, "head cranial cap")   # z > zc : cranial cap
+    lower = _as_part(lower.fuse(*[pad & below for pad in pads]))
+    upper = _as_part(upper.fuse(*[pad & above for pad in pads]))
+
+    # dowels press into the lower bowl and slip in the cap (so the cap lifts off for camera
+    # work); a glue-relief ring groove in the bowl's rim gives squeeze-out room clear of
+    # the dowels. All of a half's cuts go in ONE cut, for the same reason the pads go in one
+    # fuse: each socket alone takes its 74 mm3, but subtracted one after another the
+    # second or third left no solid at all.
+    sockets = [Pos(u, v, zc) for u, v in _head_dowel_xy()]
     gi = P.HEAD_DOWEL_R - P.HEAD_PAD_XY / 2 - 1.0
     groove = Cylinder(gi + P.SPLIT_GLUE_W, P.SPLIT_GLUE_D) - Cylinder(gi, P.SPLIT_GLUE_D)
-    lower -= Pos(0, 0, zc - P.SPLIT_GLUE_D / 2) * groove
-    return lower, upper
+    lower = _as_part(lower.cut(*[at * F.dowel_socket("press", "z") for at in sockets],
+                               Pos(0, 0, zc - P.SPLIT_GLUE_D / 2) * groove))
+    upper = _as_part(upper.cut(*[at * F.dowel_socket("clear", "z") for at in sockets]))
+    # the split plane passes just under the stereo eye recesses and leaves a sliver of
+    # wall between them standing loose (455 mm3); it is an offcut, not part of the bowl
+    return _largest(lower, "head lower bowl"), _largest(upper, "head cranial cap")
+
+
+def _as_part(shape) -> Part:
+    """A fuse can return a Compound carrying faces and edges beside the solid, and the
+    next subtraction refuses it ("dimensions ... inconsistent"). Keep the solids only."""
+    from build123d import Compound
+
+    return Part(Compound(children=list(shape.solids())).wrapped)
+
+
+def _largest(part: Part, tag: str, limit: float = 0.03) -> Part:
+    """Keep the body of a split half; fail if the split really cut it in two."""
+    from build123d import Compound
+
+    solids = sorted(part.solids(), key=lambda x: -x.volume)
+    if len(solids) <= 1:
+        return part
+    lost = sum(x.volume for x in solids[1:])
+    frac = lost / (solids[0].volume + lost)
+    if frac > limit:
+        raise ValueError(f"{tag} came apart: {len(solids)} solids, {frac:.1%} outside the largest")
+    return Part(Compound(children=[solids[0]]).wrapped)
 
 
 # ------------------------------------------------------------------ registry (for export)

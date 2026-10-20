@@ -162,6 +162,33 @@ KNEE_DRIVE = "fourbar"     # 'direct' | 'fourbar' (mechanical realisation)
 FOURBAR = _scale_lengths(dict(ground=38.0, crank=27.0, coupler=50.0, rocker=18.0,
                               rocker_offset=0.0, crank_window=(-20.0, 81.0)),
                          ("ground", "crank", "coupler", "rocker"))
+# The REAR knee gets its own four-bar, and only two numbers move. The rear thigh is 3.5 mm
+# shorter than the front (64 vs 67.5), and sharing the front's 38 mm ground left the rear
+# knee servo 3.5 mm nearer the hip -- 26 mm against 29.5. That housing swings through the
+# hip bracket's foot: 60-134 mm3 of plastic, which a relief can take, and 14.7 mm3 of the
+# aft mount screw's HEAD, which it cannot. No head style clears (a flush countersink still
+# meets it by 3.1), flipping which way the servo body runs changes nothing (the hip turns
+# about y, so +x and -x sweep the same ring), and the screw cannot move (clearing the sweep
+# needs x >= -4.1, clearing the axle bore needs x <= -6.45). So the housing moves instead.
+#
+# How far is a trade, because the thigh is short: moving the housing AWAY from the hip
+# moves it TOWARD the knee, where the folding shank meets its outboard face. Measured:
+#     ground 38.0  housing 26.0 from hip  screw head 14.7 mm3   fold clear to 123 deg
+#     ground 37.0           27.0                     1.6                     122
+#     ground 36.5           27.5                     0.0                     121
+#     ground 34.5           29.5                     0.0                     ~119
+# 36.5 is the shortest move that clears the screw outright. The front's links do not close
+# there -- their window collapses -- but crank 27 and rocker 18 DO with a 48.5 mm coupler:
+# ROM 130.9 deg, transmission angle 40.8..140. The crank and the rocker are therefore the
+# same parts on both ends; only the pushrod is shorter.
+FOURBAR_REAR = _scale_lengths(dict(ground=36.5, crank=27.0, coupler=48.5, rocker=18.0,
+                                   rocker_offset=0.0, crank_window=(-21.0, 82.0)),
+                              ("ground", "crank", "coupler", "rocker"))
+
+
+def fourbar(leg: str) -> dict:
+    """The knee four-bar for this leg ('FL', 'RR', ... or just 'F' / 'R')."""
+    return FOURBAR_REAR if leg[0] == "R" else FOURBAR
 
 # leg mounts — coordinates are in each half's OWN frame (fore/aft origin at the
 # waist; fore geometry extends +x, aft extends -x).
@@ -223,7 +250,14 @@ NECK_L = 34.0 * SCALE
 # behind it there is 15 mm. The head itself does not move -- only the yaw axis does, which
 # gives the head a slight sideways shift as it turns, the way a real neck does.
 HEAD_DRIVE = "remote_fourbar"
-HEAD_GIMBAL_STACK = 18.0 * SCALE   # pan axis -> pitch axis (= the head centre)
+# The yaw axis runs through the head's CENTRE. It used to sit 18 mm behind it, so the pan
+# linkage would have a plane to run in under the head ball -- and that offset meant the
+# head ORBITED as it turned: its back swung out of the ball the chest was hollowed for,
+# and it hit the ribcage from 10 deg of yaw (1871 mm3 at the worst pose of the commanded
+# range). Measured by axis offset: 18 mm -> 1871, 12 -> 1461, 6 -> 1277, 0 -> 23. Only
+# through the centre does the head turn in place. The linkage still has its plane: its
+# rocker runs at z = -26.5, under a head ball whose lowest point is z = -17.
+HEAD_GIMBAL_STACK = 0.0 * SCALE    # pan axis -> pitch axis (= the head centre)
 HEAD_MOUNT_X = FORE_LEN - HEAD_GIMBAL_STACK
 LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a crank small
                                    # enough to stay clear of the waist (2.07 rad available)
@@ -231,7 +265,12 @@ LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a 
 # Pan: servo shaft (x, z) in the fore-torso frame, from actuator_fit.capacity('chest'),
 # dropped to the underside so its crank sweeps below the head ball (which reaches
 # down to z = -24 at the pan axis; the chest floor is at z = -39).
-PAN_SERVO = (31.0 * SCALE, -23.0 * SCALE)
+# Moved forward WITH the yaw axis, by the same 18 mm, so the ground stays 41 and the pan
+# four-bar below is unchanged and still verified. Left at x = 31 the ground grows to 59,
+# which needs a 28 mm crank -- and a crank that long sweeps back past the waist plane into
+# the aft half's waist-servo boss (546 mm3), which is the clash this move set out to fix.
+# Shifted, the linkage clears the aft torso outright (266 mm3 -> 0).
+PAN_SERVO = (49.0 * SCALE, -23.0 * SCALE)
 # The crank is deliberately SMALL. A longer one reaches the same range with a nicer
 # transmission angle, but its swept disc runs back past the waist plane -- at crank 27
 # it reaches x = -0.5, into the aft half. At 17 it stops at x = +9.5.
@@ -382,10 +421,42 @@ def leg_geom(leg: str) -> dict:
     return FRONT if is_front(leg) else REAR
 
 
+# How far the knee may fold before the THIGH and the SHANK run into each other. The
+# per-leg caps below are the four-bar's reach; nothing in them knows whether the two
+# segments actually clear. They do not: swept against each other they are clear at 123
+# deg and share material at 124, on both legs, while the caps allow 150/160 and the loaf
+# pose commands 144.5/155.1. The loaf, as published, was not a pose the limb could strike.
+#
+# Pinned rather than computed because params may not build CAD -- it is what CAD is built
+# FROM. tests/test_geometry.py re-measures it against the real segments, so the number
+# cannot drift away from the geometry without failing.
+KNEE_FOLD_LIMIT = {"F": math.radians(123.0),    # measured clear angle, no margin
+                   "R": math.radians(121.0)}    # ...the rear's own, after FOURBAR_REAR
+# No margin, deliberately: 120 deg looked like prudence and clipped both gaits, costing
+# trot its roll (3.0 -> 6.5 deg p-p) and a third of its torque headroom. Per END because
+# the rear's four-bar moved its knee servo 1.5 mm toward the knee to clear a mount screw,
+# and the folding shank now meets that housing 2 deg sooner.
+
+
+def mount_screw_xs(leg: str) -> list[float]:
+    """X offsets, on the hip bracket's foot and the torso pad alike, of the mount screws.
+
+    Both parts used to compute these from MOUNT_BOLT_PITCH independently -- and so did a
+    test -- which is three places to change and two to forget.
+    """
+    pitch, centre = MOUNT_SCREW_LAYOUT[leg[0]]
+    return [centre + (i - (MOUNT_SCREWS - 1) / 2.0) * pitch for i in range(MOUNT_SCREWS)]
+
+
 def leg_knee_limit(leg: str) -> tuple[float, float]:
-    """Per-leg knee JOINT soft limit (rad), from the leg's real four-bar reach.
-    Falls back to the generic LIM_KNEE if a leg dict omits ``lim_knee``."""
-    return leg_geom(leg).get("lim_knee", LIM_KNEE)
+    """Per-leg knee JOINT soft limit (rad): the four-bar's reach, capped by the fold.
+
+    The reach figure says what the LINKAGE can drive. ``KNEE_FOLD_LIMIT`` says what the
+    LIMB can do without the thigh and the shank sharing material, and the second is the
+    binding one -- it arrives 27 deg earlier on the front leg and 37 on the rear.
+    """
+    lo, hi = leg_geom(leg).get("lim_knee", LIM_KNEE)
+    return (lo, min(hi, KNEE_FOLD_LIMIT[leg[0]]))
 
 
 def leg_plane_sign(leg: str) -> int:
@@ -582,7 +653,20 @@ MOUNT_PAD = (26.0 * SCALE, 14.0 * SCALE)   # torso mount pad footprint (X, Z), m
                                   # kept short in Z so the bolted foot stays clear of
                                   # the knee servo boss swinging past it
 MOUNT_PAD_T = 5.0 * SCALE                 # pad thickness (grows inboard from the flank plane)
-MOUNT_BOLT_PITCH = 16.0 * SCALE           # screw spacing along X on the pad
+MOUNT_BOLT_PITCH = 16.0 * SCALE           # FRONT screw spacing along X on the pad
+# One layout per end, so the bracket's clearance holes, the torso pad's inserts and the
+# fastening test cannot disagree. Both ends use the same pattern, and that is a finding
+# rather than a default -- see the note in tests/test_geometry.py on the rear screw.
+#
+# Moving the REAR pattern was tried and it is a dead end. The rear knee-servo housing
+# sweeps across the aft end of the bracket's foot (the rear thigh is 3.5 mm shorter but
+# keeps the same 38 mm crank ground, so its housing sits 3.5 mm nearer the hip), and it
+# passes over the aft screw's HEAD -- steel, not in the CAD -- by 14.7 mm3. To clear the
+# sweep that screw must sit at x >= -4.1; to clear the Ø6 axle bore that runs through the
+# middle of the foot it must sit at x <= -6.45. There is no such x. Shifting it to -3 put
+# its clearance hole INTO the axle bore.
+MOUNT_SCREW_LAYOUT = {"F": (MOUNT_BOLT_PITCH, 0.0),
+                      "R": (MOUNT_BOLT_PITCH, 0.0)}   # (pitch, centre) along X, mm
 MOUNT_FACE_GAP = 0.15             # bracket-to-pad seating gap (a print-fit, not a joint)
 
 # =============================================================== waist joint clearance

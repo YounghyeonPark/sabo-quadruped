@@ -163,8 +163,8 @@ def leg_summary() -> dict:
 
 
 # --------------------------------------------------------------------- transmission
-def _fourbar() -> FourBar:
-    fb = P.FOURBAR
+def _fourbar(leg: str = "FL") -> FourBar:
+    fb = P.fourbar(leg)
     return FourBar(d=fb["ground"], r2=fb["crank"], r3=fb["coupler"], r4=fb["rocker"],
                    rocker_offset=fb["rocker_offset"], crank_window=fb["crank_window"])
 
@@ -176,13 +176,20 @@ def transmission_summary() -> dict:
     rom, lo, hi, mu_lo, mu_hi = usable_window(fb)
     lo_deg, hi_deg = P.FOURBAR["crank_window"]
 
-    # per-leg knee JOINT reach = four-bar knee_fb sweep + per-leg stance offset
+    # per-leg: each end has its OWN four-bar now (params.FOURBAR_REAR -- a shorter ground
+    # and coupler, so the rear knee servo sits as far from the hip as the front's), so the
+    # reach, ROM and transmission angle are reported per end, each from its own window.
     per_leg = {}
     for kind, leg in (("front", "FL"), ("rear", "RL")):
-        k_lo = gait.crank_to_knee(leg, math.radians(lo_deg))
-        k_hi = gait.crank_to_knee(leg, math.radians(hi_deg))
+        lw, hw = P.fourbar(leg)["crank_window"]
+        k_lo = gait.crank_to_knee(leg, math.radians(lw))
+        k_hi = gait.crank_to_knee(leg, math.radians(hw))
+        r_rom, _l, _h, r_mlo, r_mhi = usable_window(_fourbar(leg))
         per_leg[kind] = {"knee_reach_deg": [round(math.degrees(min(k_lo, k_hi)), 1),
-                                            round(math.degrees(max(k_lo, k_hi)), 1)]}
+                                            round(math.degrees(max(k_lo, k_hi)), 1)],
+                         "geometry_mm": dict(P.fourbar(leg)),
+                         "knee_rom_deg": round(math.degrees(r_rom), 1),
+                         "transmission_angle_deg": [round(r_mlo, 1), round(r_mhi, 1)]}
 
     # remote-axle hip: lateral (roll-axis) inertia of the 4 HIP-servo masses, servo
     # BODY out on the leg vs relocated into the torso core (validate.check_balance

@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import math
 
-from build123d import (Box, BuildPart, BuildSketch, Cylinder, Ellipse, Part, Plane,
+from build123d import (Box, BuildPart, BuildSketch, Compound, Cylinder, Ellipse,
+                       Part, Plane,
                        Pos, Rot, Sphere, loft, scale)
 
 from cad import params as P
@@ -198,6 +199,8 @@ def _leg_port(leg: str) -> Part:
     from cad.parts.body import hip_work_range
     from sim.gait import stance_angles
 
+    from cad.parts.leg import leg_parts
+
     proxy = _thigh_proxy(leg)
     hip0 = stance_angles(leg)[0]
     lo, hi = hip_work_range(leg)
@@ -206,6 +209,24 @@ def _leg_port(leg: str) -> Part:
     for i in range(n):
         posed = _hip_frame(leg, hip0 + lo + (hi - lo) * i / (n - 1)) * proxy
         port = posed if port is None else port + posed
+
+    # ...and the BRACKET, which does not swing but does pass through the skin: it is
+    # bolted to the torso flank at |y| = BODY_W/2 and reaches out to the hip pivot, so
+    # the skin crosses it. Sweeping only the thigh left it sharing 400 mm3 with the
+    # fore shell -- a fastener that cannot be reached and a skin that cannot seat.
+    # The bracket goes in with it, and its BORE is filled before it does. The bracket
+    # carries a bearing bore for the Ø6 shaft; subtracting the bracket alone leaves the
+    # plug of skin that sat inside that bore standing as an island -- 313 mm3 of loose
+    # shell on each flank. The filler is a plain cylinder on the hip axis, sized from the
+    # bracket's own box, rather than the axle part: the axle is built in its own frame
+    # and lands on one flank but not the other.
+    mx, my = P.MOUNTS[leg]
+    bracket = Pos(mx, my, 0) * leg_parts(leg)["hip_bracket"]
+    bb = bracket.bounding_box()
+    r = max(bb.size.X, bb.size.Z) / 2.0
+    port = port + bracket
+    port = port + Pos(mx, bb.center().Y, 0) * (Rot(90, 0, 0)
+                                               * Cylinder(r, bb.size.Y + 2.0))
     _PORT_CACHE[leg] = port
     return port
 
@@ -228,12 +249,24 @@ def _neck_port() -> Part:
     opening, unattached to anything -- so the taper ahead of ``NECK_MOUTH_X`` goes with it
     and the skin ends in a clean rim instead.
     """
+    from cad.parts.body import _head_socket
     from cad.parts.neck import neck_sweep
 
     a = max(a for _x, a, _b in FORE_STATIONS)
     b = max(b for _x, _a, b in FORE_STATIONS)
     mouth = Pos(NECK_MOUTH_X + a, 0, 0) * Box(2 * a, 2 * (a + 10.0), 2 * (b + 10.0))
-    return neck_sweep() + mouth
+    # ...and the SAME ball the ribcage is hollowed by. The head's centre is at the
+    # torso's nose, so its rear hemisphere rests on the shoulders: without this the head
+    # sat 1113 mm3 into the skin while standing still. The ball, not the head's sweep --
+    # that is the cut that once left this skin in 29 pieces -- and the same compromise
+    # body._head_socket documents for the frame applies here.
+    # ...and the YAW BEARING's boss. With the yaw axis at the head's centre the bearing
+    # sits at the torso's nose, x = FORE_LEN, and its boss reaches back 5 mm behind the
+    # mouth -- through the bottom of this skin, by 18.5 mm3.
+    hb = P.HIP_BEARING
+    bearing = Pos(P.HEAD_MOUNT_X, 0, P.PAN_BEARING_Z) * Cylinder(
+        hb["od_r"] + P.HIP_BOSS_WALL + P.SKIN_CLEAR, hb["width"] + 8 + 2 * P.SKIN_CLEAR)
+    return neck_sweep() + mouth + _head_socket() + bearing
 
 
 TAIL_MOUTH_X = 84.0 * P.SCALE      # the skin ends here and the tail comes out
@@ -297,6 +330,31 @@ def _waist_port(aft: bool) -> Part:
     return Pos(0, 0, -(b + 20.0 - dz / 2)) * Box(2 * WAIST_SEAM, dy + 20.0, dz)
 
 
+SHELL_OFFCUT_LIMIT = 0.05   # how much a shell may lose to offcuts before that is a bug
+
+
+def _trim_offcuts(shell: Part, tag: str) -> Part:
+    """Drop the scraps a port cut leaves behind, and fail if it cut the shell up.
+
+    Opening the skin for the leg, the neck and the tail can leave a patch with nothing
+    holding it -- a 77 mm3 corner between the leg port and the neck mouth, say. A patch
+    like that is an offcut, not a part, and leaving it in makes the shell "three solids"
+    to anything that counts. Dropping them silently would hide a shell genuinely cut in
+    two, so the share lost is checked.
+    """
+    solids = sorted(shell.solids(), key=lambda x: -x.volume)
+    if len(solids) <= 1:
+        return shell
+    body = solids[0]
+    lost = sum(x.volume for x in solids[1:])
+    frac = lost / (body.volume + lost)
+    if frac > SHELL_OFFCUT_LIMIT:
+        raise ValueError(
+            f"{tag} shell came apart: {len(solids)} solids, {frac:.1%} of it outside "
+            f"the largest -- that is a split, not an offcut")
+    return Part(Compound(children=[body]).wrapped)
+
+
 def body_shell_fore(ports: bool = True) -> Part:
     """waist(0) -> chest(full) -> shoulder -> neck(taper). Hollow skin + Jetson bay.
 
@@ -306,7 +364,14 @@ def body_shell_fore(ports: bool = True) -> Part:
     cut = _jetson_bay(P.SHELL_T)
     if ports:
         cut = cut + _leg_port("FL") + _leg_port("FR") + _neck_port() + _waist_port(False)
-    return _hollow(FORE_STATIONS, P.SHELL_T, waist_extend=-8, cutters=cut)
+    shell = _hollow(FORE_STATIONS, P.SHELL_T, waist_extend=-8, cutters=cut)
+    if ports:
+        # the head's real sweep, as the ribcage takes it: the ball alone let the turning,
+        # nodding head into the skin by 31 mm3 at yaw +57 / pitch -20
+        from cad.parts.body import head_poses
+        for posed in head_poses():
+            shell = shell - posed
+    return _trim_offcuts(shell, "fore") if ports else shell
 
 
 def body_shell_aft(ports: bool = True) -> Part:
@@ -314,11 +379,15 @@ def body_shell_aft(ports: bool = True) -> Part:
     cut = _battery_bay()
     if ports:
         cut = cut + _leg_port("RL") + _leg_port("RR") + _tail_port() + _waist_port(True)
-    return _hollow(AFT_STATIONS, P.SHELL_T, waist_extend=+8, cutters=cut)
+    # The bare loft is a measurement baseline, not a part, and it is NOT trimmed: the
+    # battery bay alone leaves the aft shell in two pieces, 10.5% outside the largest,
+    # and the tail mouth is what takes that piece away.
+    shell = _hollow(AFT_STATIONS, P.SHELL_T, waist_extend=+8, cutters=cut)
+    return _trim_offcuts(shell, "aft") if ports else shell
 
 
 # --------------------------------------------------------------------------- head
-def _head_outer() -> Part:
+def _head_outer(ears: bool = True) -> Part:
     R = P.HEAD_R
     skull = _ellipsoid(R * 0.98, R, R * 0.98)                 # big round skull
     skull += Pos(0, 0, R * 0.35) * _ellipsoid(R*0.7, R*0.8, R*0.5)  # tall forehead (baby schema)
@@ -328,10 +397,11 @@ def _head_outer() -> Part:
     for s in (1, -1):                                          # big low-set eye recesses
         skull -= Pos(R*0.78, s*R*0.40, -R*0.02) * _ellipsoid(R*0.18, R*0.22, R*0.26)
     skull += Pos(R*1.05, 0, -R*0.30) * _ellipsoid(R*0.12, R*0.16, R*0.12)  # nose
-    for s in (1, -1):                                          # cat ears
-        ear = _ellipsoid(R*0.10, R*0.34, R*0.42)
-        ear = Pos(-R*0.15, s*R*0.5, R*0.95) * (Rot(s*22, 0, 0) * ear)
-        skull += ear
+    if ears:
+        for s in (1, -1):                                      # cat ears
+            ear = _ellipsoid(R*0.10, R*0.34, R*0.42)
+            ear = Pos(-R*0.15, s*R*0.5, R*0.95) * (Rot(s*22, 0, 0) * ear)
+            skull += ear
     return skull
 
 
@@ -403,12 +473,9 @@ def _sense_ports() -> Part:
     return ports
 
 
-def head_shell() -> Part:
-    R = P.HEAD_R
-    shell = _head_outer() - _head_cavity(P.SHELL_T)
-    shell -= _face_ports()
-    shell -= _sense_ports()
-    return shell
+# There is no head_shell() any more. It drew the face as a second skull at the same
+# centre and radius as head.head(), and both were printed. Its face and its sensor
+# ports (the helpers above) now go into head() itself.
 
 
 def waist_collar() -> Part:
@@ -444,7 +511,11 @@ def full_cat() -> Part:
         parts += [base*Ta*pl["hip_bracket"], base*Th*pl["upper"],
                   base*Tk*pl["lower"], base*Tan*pl["foot"]]
 
-    parts.append(Pos(P.FORE_LEN + P.NECK_L*0.3, 0, lift + P.BODY_H*0.35) * head_shell())
+    # the head, where the gimbal actually puts it -- this preview used to place the old
+    # face skin at a station of its own, which was not where the head is
+    from cad.parts.head import head
+    hx, _, hz = P.head_centre()
+    parts.append(Pos(hx, 0, lift + hz) * head())
     parts.append(Pos(-P.AFT_LEN + 6, 0, lift + P.BODY_H*0.3) * (Rot(0, -40, 0) * tail()))
 
     fused = parts[0]
@@ -454,8 +525,7 @@ def full_cat() -> Part:
 
 
 if __name__ == "__main__":
-    for name, fn in (("fore", body_shell_fore), ("aft", body_shell_aft),
-                     ("head", head_shell)):
+    for name, fn in (("fore", body_shell_fore), ("aft", body_shell_aft)):
         vol = fn().volume
         mass = vol * 1e-9 * P.EFFECTIVE_DENSITY * 1000.0
         print(f"{name:>4} shell vol: {vol:10.0f} mm^3   plastic mass: {mass:6.1f} g")

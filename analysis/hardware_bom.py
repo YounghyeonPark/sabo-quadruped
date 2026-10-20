@@ -36,10 +36,12 @@ from cad.servo import DEFAULT as SERVO
 # ------------------------------------------------------------------ instrumentation
 _TALLY: dict[str, int] = {}
 _IN_CASE_SCREWS = False
+_IN_CUTTER = False
 
 
 def _bump(key: str, n: int = 1) -> None:
-    _TALLY[key] = _TALLY.get(key, 0) + n
+    if not _IN_CUTTER:
+        _TALLY[key] = _TALLY.get(key, 0) + n
 
 
 def _instrument():
@@ -83,12 +85,33 @@ def _instrument():
                      ("horn_holes", horn_holes), ("servo_case_screws", servo_case_screws),
                      ("dowel_socket", dowel_socket)):
         setattr(F, name, fn)
+
+    # The chest is cut by the whole head at every pose of its yaw/pitch range, so building
+    # torso_fore (and the fore skin) builds the head, inserts and all. Those heads are
+    # cutters; the head's own features are counted once, by its own builder. Counted here
+    # they put the head's 8 inserts on torso_fore's line.
+    from cad.parts import body
+    orig_poses = body.head_poses
+
+    def head_poses(*a, **kw):
+        global _IN_CUTTER
+        _IN_CUTTER = True
+        try:
+            return orig_poses(*a, **kw)
+        finally:
+            _IN_CUTTER = False
+
+    body.head_poses = head_poses
+    orig[(body, "head_poses")] = orig_poses
     return orig
 
 
 def _restore(orig) -> None:
     for n, fn in orig.items():
-        setattr(F, n, fn)
+        if isinstance(n, tuple):
+            setattr(*n, fn)
+        else:
+            setattr(F, n, fn)
 
 
 def count_features() -> dict[str, int]:
@@ -135,7 +158,7 @@ def _builders() -> dict:
         # it here would tally every part of the leg once per part of the leg.
         def _lower(kind):
             leg = "FL" if kind == "F" else "RL"
-            return lambda: lower_leg(P.leg_geom(leg)["lower"], stance_angles(leg)[1])
+            return lambda: lower_leg(P.leg_geom(leg)["lower"], stance_angles(leg)[1], leg)
 
         builders = {
             "torso_fore": torso_fore, "torso_aft": torso_aft, "head": head,
@@ -145,12 +168,12 @@ def _builders() -> dict:
             "hipbr_R_L": lambda: hip_bracket(+1, P.REAR["hip_off"]),
             "hipbr_R_R": lambda: hip_bracket(-1, P.REAR["hip_off"]),
             "upper_F": lambda: upper_leg(P.FRONT["upper"], +1),
-            "upper_R": lambda: upper_leg(P.REAR["upper"], +1),
+            "upper_R": lambda: upper_leg(P.REAR["upper"], +1, "RL"),
             "lower_F": _lower("F"), "lower_R": _lower("R"),
             "foot_F": lambda: foot_seg(P.FRONT["foot"]),
             "foot_R": lambda: foot_seg(P.REAR["foot"]),
-            "crank_F": crank, "crank_R": crank,
-            "pushrod_F": pushrod, "pushrod_R": pushrod,
+            "crank_F": crank, "crank_R": lambda: crank(1, "RL"),
+            "pushrod_F": pushrod, "pushrod_R": lambda: pushrod(1, "RL"),
             "tail_crank": tail_crank, "tail_pushrod": tail_pushrod,
             "neck_column": neck_column, "pan_crank": pan_crank,
             "pan_pushrod": pan_pushrod,

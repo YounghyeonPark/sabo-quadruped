@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import math
 
-from build123d import (BuildPart, BuildSketch, Locations, Part, Plane, Pos,
+from build123d import (BuildPart, BuildSketch, Compound, Locations, Part, Plane,
+                       Pos,
                        RectangleRounded, Rot, loft)
 
 from cad import params as P
@@ -116,9 +117,12 @@ def _seg_stations(leg: str, seg: str) -> list:
     _z, cx1, cy1, hx1, hy1 = out[-1]
     out.insert(0, (e0, cx0, cy0, hx0, hy0))
     out.append((e1, cx1, cy1, hx1, hy1))
+    # The DISTAL dome is kept short. A full one reaches CAP_RISE past the joint at the
+    # end of the segment, which is the far side of a hinge: the shank cover's distal cap
+    # was sitting in the foot's swing. The proximal end has no such joint beyond it.
     for f in (0.86, 0.55):                      # CAP_STATIONS of them; d = R*sqrt(1-f^2)
         d = CAP_RISE * math.sqrt(max(1e-6, 1.0 - f * f))
-        out.insert(0, (e0 - d, cx0, cy0, hx0 * f, hy0 * f))
+        out.insert(0, (e0 - d * DISTAL_CAP, cx0, cy0, hx0 * f, hy0 * f))
         out.append((e1 + d, cx1, cy1, hx1 * f, hy1 * f))
 
     # One corner radius per station, taken from the INNER wall so the outer and inner
@@ -142,7 +146,7 @@ def _seg_stations(leg: str, seg: str) -> list:
 
     if seg == "upper":
         (_cx, _cy, bz), (_dx, _dy, bdz) = knee_boss_envelope(
-            P.leg_geom(leg)["upper"], P.leg_plane_sign(leg))
+            P.leg_geom(leg)["upper"], P.leg_plane_sign(leg), leg)
         # widened by one slab: the stations sitting on the slab boundaries just outside
         # the housing still carry ITS bounds -- they take the maximum over the slab below
         # and the slab above -- so charging them the sharp-corner allowance put the full
@@ -166,6 +170,7 @@ def _seg_stations(leg: str, seg: str) -> list:
 CORNER_R = 17.0         # how round a section may get, capped per station
 CAP_RISE = 9.0          # how far a domed end reaches past the limb
 CAP_STATIONS = 2        # sections per dome, beyond the limb's own ends
+DISTAL_CAP = 0.35       # the distal dome is shortened: a joint lives there
 
 # Whether the thigh cover wraps the knee-servo housing as well as the bone. It does not.
 #
@@ -188,7 +193,7 @@ def _boss_box(leg: str) -> Part:
     from cad.parts.leg import knee_boss_envelope
 
     (cx, cy, cz), (dx, dy, dz) = knee_boss_envelope(
-        P.leg_geom(leg)["upper"], P.leg_plane_sign(leg))
+        P.leg_geom(leg)["upper"], P.leg_plane_sign(leg), leg)
     c = P.FAIRING_CLEAR
     return Pos(cx, cy, cz) * Box(dx + 2 * c, dy + 2 * c, dz + 2 * c)
 
@@ -250,6 +255,83 @@ def _torso_keepouts(leg: str) -> list:
     return out
 
 
+NEIGHBOUR_SAMPLES = 13  # poses sampled for each thing that moves past a cover
+
+
+def _neighbour_keepouts(leg: str, seg: str) -> list:
+    """Everything that moves relative to this cover, posed into ITS frame, as a list.
+
+    The covers were only ever checked against their own segment and against the torso.
+    Nothing checked them against what swings past them from the other side of a joint,
+    and a whole-robot audit found seven kinds of clash at once: the shank cover into the
+    thigh cover and into the thigh itself, both covers into the four-bar crank and
+    pushrod they enclose, the shank cover into the foot, the thigh cover into the shank
+    and into the hip bracket.
+
+    Same rule the torso already uses -- subtract the real swept volume, over the real
+    range -- applied across the joints instead of across the hip alone. Returned as a
+    LIST and subtracted one at a time: a union of this many overlapping solids is the
+    boolean that lies (see _torso_keepouts).
+    """
+    import math as _m
+
+    from build123d import Pos, Rot
+    from cad.assembly import _linkage_transforms
+    from cad.parts.body import hip_work_range, knee_work_range
+    from cad.parts.leg import leg_parts
+    from sim.gait import ankle_from_knee, stance_angles
+
+    g = P.leg_geom(leg)
+    pl = leg_parts(leg)
+    n = NEIGHBOUR_SAMPLES
+    # the knee's COMMANDED range, not params.leg_knee_limit: that is the mechanism's
+    # whole reach, and sweeping the thigh through it carved the shank cover into nine
+    # pieces a third of its size.
+    k_lo, k_hi = knee_work_range(leg)
+    out = []
+
+    def knee_frame(k):
+        """The shank's frame, seen from the thigh's, at knee angle k."""
+        return Pos(0, 0, -g["upper"]) * Rot(0, -_m.degrees(k), 0)
+
+    def ankle_frame(k):
+        a = ankle_from_knee(leg, k)
+        return knee_frame(k) * Pos(0, 0, -g["lower"]) * Rot(0, -_m.degrees(a), 0)
+
+    if seg == "upper":
+        # the four-bar, which runs in the thigh's own channel
+        Tcr, Tpr = _linkage_transforms(leg)
+        out += [Tcr * pl["crank"], Tpr * pl["pushrod"]]
+        # the shank and the foot, folding through the knee's real limit
+        for i in range(n):
+            k = k_lo + (k_hi - k_lo) * i / (n - 1)
+            out.append(knee_frame(k) * pl["lower"])
+            out.append(ankle_frame(k) * pl["foot"])
+        # the hip bracket is bolted to the TORSO, so in this frame it swings by -hip
+        hip0 = stance_angles(leg)[0]
+        lo, hi = hip_work_range(leg)
+        s = P.leg_plane_sign(leg)
+        for i in range(n):
+            h = hip0 + lo + (hi - lo) * i / (n - 1)
+            out.append(Rot(0, _m.degrees(h), 0) * Pos(0, -s * g["hip_off"], 0)
+                       * pl["hip_bracket"])
+    else:
+        # everything above the knee, seen from the shank: the thigh, its cover, and the
+        # four-bar. The thigh cover is built first, so there is no cycle here.
+        up = thigh_fairing(leg)
+        Tcr, Tpr = _linkage_transforms(leg)
+        for i in range(n):
+            k = k_lo + (k_hi - k_lo) * i / (n - 1)
+            inv = knee_frame(k).inverse()
+            out += [inv * pl["upper"], inv * up, inv * (Tcr * pl["crank"]),
+                    inv * (Tpr * pl["pushrod"])]
+            # the foot, through the coupled ankle
+            a = ankle_from_knee(leg, k)
+            out.append(Pos(0, 0, -g["lower"]) * Rot(0, -_m.degrees(a), 0) * pl["foot"])
+
+    return out
+
+
 def _screw_holes(part: Part, leg: str, seg: str) -> Part:
     """Clearance + head counterbore where the fairing bolts to its limb.
 
@@ -301,9 +383,42 @@ def _fairing(leg: str, seg: str, trim_torso: bool) -> Part:
     if trim_torso:
         for ko in _torso_keepouts(leg):
             part = part - ko
+    for ko in _neighbour_keepouts(leg, seg):
+        part = part - ko
     part = _screw_holes(part, leg, seg)
+    part = _largest(part, leg, seg)
     _FAIRING_CACHE[key] = part
     return part
+
+
+OFFCUT_LIMIT = 0.20     # how much a cover may lose to offcuts before that is a bug
+
+
+def _largest(part: Part, leg: str, seg: str) -> Part:
+    """Keep the cover's body and drop what the trimming cut loose.
+
+    The shank cover loses a little near the knee, and it has to: at the bottom of the
+    fold the thigh comes down beside the shank with nothing but running clearance
+    between them, so there is nowhere for a cover to be. What survives is one piece
+    plus slivers, and the slivers are offcuts -- not parts.
+
+    Dropping them silently would hide a real split, so the share lost is checked. If a
+    change ever cuts a cover properly in half this raises instead of quietly shipping
+    half a part.
+    """
+    solids = sorted(part.solids(), key=lambda x: -x.volume)
+    if len(solids) <= 1:
+        return part
+    body = solids[0]
+    lost = sum(x.volume for x in solids[1:])
+    frac = lost / (body.volume + lost)
+    if frac > OFFCUT_LIMIT:
+        raise ValueError(
+            f"{leg} {seg} cover came apart: {len(solids)} solids, "
+            f"{frac:.0%} of it outside the largest -- that is a split, not an offcut")
+    # Part(solid.wrapped) reports a volume of ZERO -- the solid has to be wrapped in
+    # a Compound first, or added to an empty Part, for the geometry to survive.
+    return Part(Compound(children=[body]).wrapped)
 
 
 def thigh_fairing(leg: str) -> Part:

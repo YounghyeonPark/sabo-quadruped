@@ -28,7 +28,9 @@ SKIN_RGBA = "0.86 0.55 0.35 0.38"    # torso skin — translucent apricot (see f
 HEAD_RGBA = "0.82 0.83 0.88 1"       # head — opaque light skin (the cute face)
 HEAD_LINK = "head_pitch"
 # ears live on the head skin; the neck/gimbal stubs are internal — don't render them
-SKIP_VISUAL = {"ear_L", "ear_R", "head_pan"}
+# The ears are drawn: they are the bolted pair now, not a shape sculpted into a separate
+# face skin, so hiding them would hide real parts.
+SKIP_VISUAL = {"head_pan"}
 
 
 def _fore_electronics() -> float:
@@ -79,8 +81,8 @@ def build_mjcf(start_z: float | None = None) -> str:
         s += f'{pad}  {_inertial(_link_mass(lk), center, size)}\n'
         # visual geoms (collision stays on the primitives added below / in root)
         if lk.name == HEAD_LINK:
-            # head = clean opaque skin (its ears are sculpted in); no grey frame sphere
-            s += (f'{pad}  <geom type="mesh" mesh="{SKIN_OVER[lk.name]}" '
+            # the head is ONE part, face and gimbal together: draw its own mesh, opaque
+            s += (f'{pad}  <geom type="mesh" mesh="{lk.name}" '
                   f'contype="0" conaffinity="0" rgba="{HEAD_RGBA}"/>\n')
         elif lk.name in SKIP_VISUAL:
             pass                                    # ears shown by the head skin

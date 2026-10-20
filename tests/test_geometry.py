@@ -168,8 +168,7 @@ def test_every_printed_part_can_be_fastened_to_its_neighbour():
     from cad.parts import fasteners as F
     from build123d import Pos
     holes = 0.0
-    for i in range(P.MOUNT_SCREWS):
-        sx = (i - (P.MOUNT_SCREWS - 1) / 2.0) * P.MOUNT_BOLT_PITCH
+    for sx in P.mount_screw_xs("FL"):
         holes += (hip_bracket(1, P.FRONT["hip_off"])
                   & (Pos(sx, 2.0, 0) * F.screw_clearance(P.MOUNT_SCREW, "y", 12.0))).volume
     assert plain > 0
@@ -184,7 +183,7 @@ def test_torso_carries_the_matching_leg_mount_inserts():
 
     for leg in ("FL", "RL"):
         mx, _ = P.MOUNTS[leg]
-        pad = _leg_mount_pad(mx, P.leg_plane_sign(leg))
+        pad = _leg_mount_pad(mx, P.leg_plane_sign(leg), leg)
         bb = pad.bounding_box()
         assert pad.volume > 0
         # the pad seats on the flank plane and grows inboard, never outboard
@@ -479,3 +478,169 @@ def test_thigh_fairings_clear_the_torso_through_the_hip_window(skins):
                 assert v <= NOISE_MM3, (
                     f"{leg} thigh fairing shares {v:.0f} mm^3 with the {tag} skin at hip "
                     f"{hip:.2f} rad")
+
+
+# ------------------------------------------------- the covers against their neighbours
+def _leg_neighbourhood(leg):
+    """Every part of one leg, posed at stance, plus the bracket it hangs from."""
+    from cad.assembly import _leg_locations, _linkage_transforms
+    from cad.parts.fairing import shank_fairing, thigh_fairing
+    from cad.parts.leg import leg_parts
+    from sim.gait import ankle_from_knee, stance_angles
+
+    hip, knee = stance_angles(leg)
+    Ta, Th, Tk, Tan = _leg_locations(leg, hip, knee, ankle_from_knee(leg, knee))
+    pl = leg_parts(leg)
+    Tcr, Tpr = _linkage_transforms(leg)
+    return {"bracket": Ta * pl["hip_bracket"], "upper": Th * pl["upper"],
+            "lower": Tk * pl["lower"], "foot": Tan * pl["foot"],
+            "crank": Th * Tcr * pl["crank"], "pushrod": Th * Tpr * pl["pushrod"],
+            "fair_up": Th * thigh_fairing(leg), "fair_lo": Tk * shank_fairing(leg)}
+
+
+@pytest.mark.parametrize("leg", ["FL", "RL"])
+def test_limb_covers_clear_everything_that_moves_past_them(leg):
+    """A cover has to miss what swings at it from the OTHER side of a joint.
+
+    Each cover was checked against its own segment and against the torso, and nothing
+    checked it across a joint. Assembling the whole robot and testing every pair found
+    seven kinds of clash at once: the shank cover into the thigh cover and into the thigh
+    itself, both covers into the four-bar crank and pushrod they enclose, the shank cover
+    into the foot, the thigh cover into the shank and into the hip bracket.
+    """
+    parts = _leg_neighbourhood(leg)
+    bad = []
+    for a, b in itertools.combinations(sorted(parts), 2):
+        if not a.startswith("fair") and not b.startswith("fair"):
+            continue                      # the rest of the leg is covered above
+        v = (parts[a] & parts[b]).volume
+        if v > NOISE_MM3:
+            bad.append((a, b, v))
+    assert not bad, _msg(bad)
+
+
+def test_the_leg_port_passes_the_hip_bracket_too(skins):
+    """The bracket does not swing, but it does cross the skin: it bolts to the torso
+    flank and reaches out to the hip pivot. Sweeping only the thigh left it sharing
+    400 mm^3 with the fore shell."""
+    from cad.assembly import _leg_locations
+    from cad.parts.leg import leg_parts
+    from sim.gait import ankle_from_knee, stance_angles
+
+    for tag, legs in (("fore", ("FL", "FR")), ("aft", ("RL", "RR"))):
+        for leg in legs:
+            hip, knee = stance_angles(leg)
+            Ta, _, _, _ = _leg_locations(leg, hip, knee, ankle_from_knee(leg, knee))
+            v = (Ta * leg_parts(leg)["hip_bracket"] & skins[tag]).volume
+            assert v <= NOISE_MM3, (
+                f"{leg} hip bracket shares {v:.0f} mm^3 with the {tag} skin")
+
+
+@pytest.mark.parametrize("leg", ["FL", "RL"])
+def test_the_knee_can_fold_to_its_limit_without_the_limb_hitting_itself(leg):
+    """``leg_knee_limit`` has to be a limit the LIMB can reach, not just the linkage.
+
+    It used to be the four-bar's reach alone -- 150 deg front, 160 rear -- and nothing
+    asked whether the thigh and the shank clear each other there. They do not: swept
+    against one another they are clear at 123 deg and share material at 124, on both
+    legs, while the loaf pose commanded 144.5 and 155.1. The loaf, as published, was not
+    a pose the limb could strike. ``params.KNEE_FOLD_LIMIT`` caps it now, and this is
+    what keeps that number honest against the geometry it was measured from.
+    """
+    import math
+
+    from build123d import Pos, Rot
+    from cad import params as P
+    from cad.parts.leg import leg_parts
+
+    g = P.leg_geom(leg)
+    pl = leg_parts(leg)
+    lo, hi = P.leg_knee_limit(leg)
+    worst = (0.0, None)
+    for i in range(13):
+        k = lo + (hi - lo) * i / 12
+        inv = (Pos(0, 0, -g["upper"]) * Rot(0, -math.degrees(k), 0)).inverse()
+        v = (inv * pl["upper"] & pl["lower"]).volume
+        if v > worst[0]:
+            worst = (v, k)
+    assert worst[0] <= NOISE_MM3, (
+        f"{leg} thigh and shank share {worst[0]:.1f} mm^3 at knee "
+        f"{math.degrees(worst[1]):.1f} deg, inside the "
+        f"{math.degrees(lo):.0f}..{math.degrees(hi):.0f} deg the joint allows")
+
+
+@pytest.mark.parametrize("leg", ["FL", "RL"])
+def test_the_hip_bracket_clears_its_thigh_through_the_hip_window(leg):
+    """The torso fixture only ever assembled the FRONT legs, so the rear bracket was never
+    put against its own thigh. They shared 60-134 mm^3 at every hip angle: the rear thigh
+    is 3.5 mm shorter but keeps the same 38 mm crank ground, so its knee-servo housing
+    sits 3.5 mm nearer the hip and swings through the bracket's mounting foot."""
+    import math
+
+    from cad.assembly import _leg_locations
+    from cad.parts.body import hip_work_range
+    from cad.parts.leg import leg_parts
+    from sim.gait import ankle_from_knee, stance_angles
+
+    pl = leg_parts(leg)
+    hip0, knee = stance_angles(leg)
+    lo, hi = hip_work_range(leg)
+    for i in range(9):
+        h = hip0 + lo + (hi - lo) * i / 8
+        Ta, Th, _, _ = _leg_locations(leg, h, knee, ankle_from_knee(leg, knee))
+        v = (Ta * pl["hip_bracket"] & Th * pl["upper"]).volume
+        assert v <= NOISE_MM3, (
+            f"{leg} bracket and thigh share {v:.0f} mm^3 at hip {math.degrees(h):.1f} deg")
+
+
+# --------------------------------------------------------------- the head gimbal
+def test_the_head_clears_the_chest_between_the_poses_it_was_cut_for(torso_assembly, skins):
+    """The chest is cut by the head at a grid of yaw x pitch poses, oversized to cover the
+    gaps. The gaps are where it would fail, so that is where this looks: every pose half
+    way between two cut poses, in both axes.
+
+    The head used to hit the ribcage from 10 deg of yaw -- its yaw axis sat 18 mm behind
+    its centre, so it orbited as it turned -- 1871 mm^3 at the worst commanded pose.
+    """
+    import math
+
+    from build123d import Pos, Rot
+    from cad import params as P
+    from cad.parts.head import head
+
+    h = head()
+    hx, _, hz = P.head_centre()
+    ox, _, oz = P.pan_origin()
+    (lo_a, hi_a), (lo_b, hi_b) = P.LIM_HEAD_PAN, P.LIM_HEAD_PITCH
+    chest, skin = torso_assembly["torso_fore"], skins["fore"]
+    bad = []
+    for i in range(6):                                     # midpoints of the 7 x 5 cut grid
+        a = math.degrees(lo_a + (hi_a - lo_a) * (i + 0.5) / 6)
+        for j in range(4):
+            b = math.degrees(lo_b + (hi_b - lo_b) * (j + 0.5) / 4)
+            posed = (Pos(ox, 0, oz) * Rot(0, 0, a) * Pos(hx - ox, 0, hz - oz)
+                     * Rot(0, b, 0) * h)
+            for nm, body in (("chest", chest), ("skin", skin)):
+                v = (posed & body).volume
+                if v > NOISE_MM3:
+                    bad.append(f"{nm} {v:.1f} mm^3 at yaw {a:+.0f} / pitch {b:+.0f}")
+    assert not bad, "head meets the chest: " + "; ".join(bad)
+
+
+def test_the_pan_linkage_clears_the_aft_torso_over_its_whole_window(tail_assembly):
+    """The pan crank and pushrod live in the fore torso, and at the far end of their
+    window they used to reach back past the waist plane into the AFT half's waist-servo
+    boss -- 266 mm^3 once the head turned past 29 deg one way."""
+    import math
+
+    from cad import params as P
+    from cad.parts.neck import _pose_pan, pan_crank, pan_pushrod
+
+    aft = tail_assembly["torso_aft"]
+    crank, rod = pan_crank(), pan_pushrod()
+    lo, hi = P.PAN_FOURBAR["crank_window"]
+    for i in range(9):
+        t2 = lo + (hi - lo) * i / 8
+        tc, tr = _pose_pan(math.radians(t2))
+        v = (tc * crank & aft).volume + (tr * rod & aft).volume
+        assert v <= NOISE_MM3, f"pan linkage shares {v:.1f} mm^3 with torso_aft at crank {t2:.0f} deg"
