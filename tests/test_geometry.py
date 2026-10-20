@@ -591,3 +591,56 @@ def test_the_hip_bracket_clears_its_thigh_through_the_hip_window(leg):
         v = (Ta * pl["hip_bracket"] & Th * pl["upper"]).volume
         assert v <= NOISE_MM3, (
             f"{leg} bracket and thigh share {v:.0f} mm^3 at hip {math.degrees(h):.1f} deg")
+
+
+# --------------------------------------------------------------- the head gimbal
+def test_the_head_clears_the_chest_between_the_poses_it_was_cut_for(torso_assembly, skins):
+    """The chest is cut by the head at a grid of yaw x pitch poses, oversized to cover the
+    gaps. The gaps are where it would fail, so that is where this looks: every pose half
+    way between two cut poses, in both axes.
+
+    The head used to hit the ribcage from 10 deg of yaw -- its yaw axis sat 18 mm behind
+    its centre, so it orbited as it turned -- 1871 mm^3 at the worst commanded pose.
+    """
+    import math
+
+    from build123d import Pos, Rot
+    from cad import params as P
+    from cad.parts.head import head
+
+    h = head()
+    hx, _, hz = P.head_centre()
+    ox, _, oz = P.pan_origin()
+    (lo_a, hi_a), (lo_b, hi_b) = P.LIM_HEAD_PAN, P.LIM_HEAD_PITCH
+    chest, skin = torso_assembly["torso_fore"], skins["fore"]
+    bad = []
+    for i in range(6):                                     # midpoints of the 7 x 5 cut grid
+        a = math.degrees(lo_a + (hi_a - lo_a) * (i + 0.5) / 6)
+        for j in range(4):
+            b = math.degrees(lo_b + (hi_b - lo_b) * (j + 0.5) / 4)
+            posed = (Pos(ox, 0, oz) * Rot(0, 0, a) * Pos(hx - ox, 0, hz - oz)
+                     * Rot(0, b, 0) * h)
+            for nm, body in (("chest", chest), ("skin", skin)):
+                v = (posed & body).volume
+                if v > NOISE_MM3:
+                    bad.append(f"{nm} {v:.1f} mm^3 at yaw {a:+.0f} / pitch {b:+.0f}")
+    assert not bad, "head meets the chest: " + "; ".join(bad)
+
+
+def test_the_pan_linkage_clears_the_aft_torso_over_its_whole_window(tail_assembly):
+    """The pan crank and pushrod live in the fore torso, and at the far end of their
+    window they used to reach back past the waist plane into the AFT half's waist-servo
+    boss -- 266 mm^3 once the head turned past 29 deg one way."""
+    import math
+
+    from cad import params as P
+    from cad.parts.neck import _pose_pan, pan_crank, pan_pushrod
+
+    aft = tail_assembly["torso_aft"]
+    crank, rod = pan_crank(), pan_pushrod()
+    lo, hi = P.PAN_FOURBAR["crank_window"]
+    for i in range(9):
+        t2 = lo + (hi - lo) * i / 8
+        tc, tr = _pose_pan(math.radians(t2))
+        v = (tc * crank & aft).volume + (tr * rod & aft).volume
+        assert v <= NOISE_MM3, f"pan linkage shares {v:.1f} mm^3 with torso_aft at crank {t2:.0f} deg"

@@ -260,7 +260,13 @@ def _neck_port() -> Part:
     # sat 1113 mm3 into the skin while standing still. The ball, not the head's sweep --
     # that is the cut that once left this skin in 29 pieces -- and the same compromise
     # body._head_socket documents for the frame applies here.
-    return neck_sweep() + mouth + _head_socket()
+    # ...and the YAW BEARING's boss. With the yaw axis at the head's centre the bearing
+    # sits at the torso's nose, x = FORE_LEN, and its boss reaches back 5 mm behind the
+    # mouth -- through the bottom of this skin, by 18.5 mm3.
+    hb = P.HIP_BEARING
+    bearing = Pos(P.HEAD_MOUNT_X, 0, P.PAN_BEARING_Z) * Cylinder(
+        hb["od_r"] + P.HIP_BOSS_WALL + P.SKIN_CLEAR, hb["width"] + 8 + 2 * P.SKIN_CLEAR)
+    return neck_sweep() + mouth + _head_socket() + bearing
 
 
 TAIL_MOUTH_X = 84.0 * P.SCALE      # the skin ends here and the tail comes out
@@ -359,6 +365,12 @@ def body_shell_fore(ports: bool = True) -> Part:
     if ports:
         cut = cut + _leg_port("FL") + _leg_port("FR") + _neck_port() + _waist_port(False)
     shell = _hollow(FORE_STATIONS, P.SHELL_T, waist_extend=-8, cutters=cut)
+    if ports:
+        # the head's real sweep, as the ribcage takes it: the ball alone let the turning,
+        # nodding head into the skin by 31 mm3 at yaw +57 / pitch -20
+        from cad.parts.body import head_poses
+        for posed in head_poses():
+            shell = shell - posed
     return _trim_offcuts(shell, "fore") if ports else shell
 
 

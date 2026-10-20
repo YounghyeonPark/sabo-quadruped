@@ -70,7 +70,7 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 
 | Platform | |
 |---|---|
-| Mass | **1434 g** (plastic 463 + components 971) — target 0.8–1.6 kg |
+| Mass | **1437 g** (plastic 466 + components 971) — target 0.8–1.6 kg |
 | BOM cost | $699 / **$834** / $968 (lo / mid / hi) |
 | DOF | **12 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 4 expressive (waist, head pan/pitch, tail). The head holds two servo housings, so the ears are rigid and camera **roll** is corrected electronically instead of by a third gimbal axis |
 | Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |

@@ -317,26 +317,86 @@ def _hip_sweep_relief(mx: float, s: int, leg: str) -> Part:
 
 
 def _head_socket() -> Part:
-    """Cavity in the chest for the head, which pans and nods on the neck gimbal.
+    """The ball the head rests in, plus the neck's passage down to the yaw bearing.
 
-    Cut as a ball around the head's centre, NOT as the head's true swept volume.
-
-    That is a deliberate approximation and it has a cost worth writing down. The yaw axis
-    sits 18 mm behind the head's centre — it had to, so the pan linkage would have a plane
-    to run in under the ball — so as the head turns its centre orbits, and its real sweep
-    is a blob of radius ~68 about the yaw axis, not a Ø104 ball. Cutting that swept blob is
-    correct and it hollows out essentially the whole front of the chest: measured, it
-    leaves the ribcage in 41 loose pieces. A Ø100 head this close to a yaw axis cannot turn
-    ±57° without sweeping the chest.
-
-    Resolving it means giving ground somewhere — a smaller pan range, a smaller head, or a
-    yaw axis back at the head's centre with the linkage re-routed. Until then this cuts the
-    ball, which is right for the head's rear (the part that shares space with the chest)
-    and wrong for its swing."""
+    This used to be the WHOLE head cut, with a long note on what it got wrong: the yaw
+    axis sat 18 mm behind the head's centre, the head orbited as it turned, and its real
+    sweep hollowed the chest into 41 pieces, so a ball stood in for it and the head hit
+    the ribcage from 10 deg of yaw. The axis runs through the centre now
+    (params.HEAD_GIMBAL_STACK = 0), the head turns in place, and torso_fore cuts its real
+    sweep (head_poses) after this ball. The ball stays because the skin uses it too, and
+    for the skin it is enough.
+    """
     hx, _, hz = P.head_centre()
     r = P.HEAD_R + 2.0
     return Pos(hx, 0, hz) * (Sphere(r)
                              + Pos(0, 0, -P.NECK_L) * Cylinder(16.0, 2 * P.NECK_L))
+
+
+HEAD_SWEEP_GROW = 1.03   # each sampled head is cut 3% oversize -- see head_poses
+
+
+def head_poses(n_pan: int = 7, n_pitch: int = 5) -> list:
+    """The head at every corner of its yaw x pitch range, in the fore-torso frame -- a LIST.
+
+    The chest is cut by each in turn rather than by their union: a union of this many
+    overlapping heads is the boolean that returns wrong answers without raising.
+
+    This is only affordable because the yaw axis now runs through the head's centre.
+    With it 18 mm behind, the head orbited as it turned and its swept volume hollowed
+    out the front of the chest -- 41 loose pieces -- which is why the socket used to be
+    a plain ball. Turning in place, the head sweeps little more than that ball: 2.1% of
+    the chest, against a ball that still let it into the ribcage when it nodded down
+    while looking aside (the underside swings back below the ball's floor).
+
+    Each head is cut OVERSIZE, by HEAD_SWEEP_GROW about its own centre. Seven yaws and
+    five pitches leave the head between samples for most of its travel, and in between
+    it bulges past both neighbours: sampled densely, it still met the frame by 15.4 mm3
+    at yaw -27 / pitch +40. The chord sag between these samples is at most 0.8 mm at the
+    muzzle's 59 mm reach; 3% oversize is 1.5-1.8 mm, which covers it with room to spare
+    -- far cheaper than four times the samples.
+    """
+    from build123d import scale
+
+    from cad.parts.head import head
+
+    h = scale(head(), by=HEAD_SWEEP_GROW)
+    hx, _, hz = P.head_centre()
+    ox, _, oz = P.pan_origin()
+    lo_a, hi_a = P.LIM_HEAD_PAN
+    lo_b, hi_b = P.LIM_HEAD_PITCH
+    out = []
+    for i in range(n_pan):
+        a = math.degrees(lo_a + (hi_a - lo_a) * i / (n_pan - 1))
+        for j in range(n_pitch):
+            b = math.degrees(lo_b + (hi_b - lo_b) * j / (n_pitch - 1))
+            out.append(Pos(ox, 0, oz) * Rot(0, 0, a) * Pos(hx - ox, 0, hz - oz)
+                       * Rot(0, b, 0) * h)
+    return out
+
+
+FRAME_OFFCUT_LIMIT = 0.02   # a frame may shed this share as loose scraps, no more
+
+
+def _drop_offcuts(frame: Part, tag: str) -> Part:
+    """Drop the scraps a swept cut leaves behind; fail if it cut the frame up.
+
+    Sweeping the head out of the chest leaves two chips of ~175 mm3 standing loose --
+    printed, they would simply fall out. A frame is structure, so the allowance is tight:
+    more than 2% outside the largest piece is a severed frame, not an offcut.
+    """
+    from build123d import Compound
+
+    solids = sorted(frame.solids(), key=lambda x: -x.volume)
+    if len(solids) <= 1:
+        return frame
+    body = solids[0]
+    lost = sum(x.volume for x in solids[1:])
+    frac = lost / (body.volume + lost)
+    if frac > FRAME_OFFCUT_LIMIT:
+        raise ValueError(f"{tag} came apart: {len(solids)} solids, {frac:.1%} outside the "
+                         f"largest -- that is a severed frame, not an offcut")
+    return Part(Compound(children=[body]).wrapped)
 
 
 def _leg_mount_relief(mx: float, s: int) -> Part:
@@ -621,7 +681,10 @@ def torso_fore() -> Part:
     # space; cutting the socket first just let those additions grow back into it.
     frame = _waist_fore_features(_pan_drive(
         _waist_gap(_half(FORE_STATIONS, ["FL", "FR"]))))
-    return _hip_scallops(frame, ["FL", "FR"]) - _head_socket()
+    frame = _hip_scallops(frame, ["FL", "FR"]) - _head_socket()
+    for posed in head_poses():                 # the head's REAL sweep, one pose at a time
+        frame = frame - posed
+    return _drop_offcuts(frame, "torso_fore")
 
 
 def torso_aft() -> Part:

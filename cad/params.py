@@ -250,7 +250,14 @@ NECK_L = 34.0 * SCALE
 # behind it there is 15 mm. The head itself does not move -- only the yaw axis does, which
 # gives the head a slight sideways shift as it turns, the way a real neck does.
 HEAD_DRIVE = "remote_fourbar"
-HEAD_GIMBAL_STACK = 18.0 * SCALE   # pan axis -> pitch axis (= the head centre)
+# The yaw axis runs through the head's CENTRE. It used to sit 18 mm behind it, so the pan
+# linkage would have a plane to run in under the head ball -- and that offset meant the
+# head ORBITED as it turned: its back swung out of the ball the chest was hollowed for,
+# and it hit the ribcage from 10 deg of yaw (1871 mm3 at the worst pose of the commanded
+# range). Measured by axis offset: 18 mm -> 1871, 12 -> 1461, 6 -> 1277, 0 -> 23. Only
+# through the centre does the head turn in place. The linkage still has its plane: its
+# rocker runs at z = -26.5, under a head ball whose lowest point is z = -17.
+HEAD_GIMBAL_STACK = 0.0 * SCALE    # pan axis -> pitch axis (= the head centre)
 HEAD_MOUNT_X = FORE_LEN - HEAD_GIMBAL_STACK
 LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a crank small
                                    # enough to stay clear of the waist (2.07 rad available)
@@ -258,7 +265,12 @@ LIM_HEAD_PAN = (-1.0, 1.0)         # rad: what the pan four-bar delivers with a 
 # Pan: servo shaft (x, z) in the fore-torso frame, from actuator_fit.capacity('chest'),
 # dropped to the underside so its crank sweeps below the head ball (which reaches
 # down to z = -24 at the pan axis; the chest floor is at z = -39).
-PAN_SERVO = (31.0 * SCALE, -23.0 * SCALE)
+# Moved forward WITH the yaw axis, by the same 18 mm, so the ground stays 41 and the pan
+# four-bar below is unchanged and still verified. Left at x = 31 the ground grows to 59,
+# which needs a 28 mm crank -- and a crank that long sweeps back past the waist plane into
+# the aft half's waist-servo boss (546 mm3), which is the clash this move set out to fix.
+# Shifted, the linkage clears the aft torso outright (266 mm3 -> 0).
+PAN_SERVO = (49.0 * SCALE, -23.0 * SCALE)
 # The crank is deliberately SMALL. A longer one reaches the same range with a nicer
 # transmission angle, but its swept disc runs back past the waist plane -- at crank 27
 # it reaches x = -0.5, into the aft half. At 17 it stops at x = +9.5.

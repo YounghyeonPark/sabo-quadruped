@@ -36,10 +36,12 @@ from cad.servo import DEFAULT as SERVO
 # ------------------------------------------------------------------ instrumentation
 _TALLY: dict[str, int] = {}
 _IN_CASE_SCREWS = False
+_IN_CUTTER = False
 
 
 def _bump(key: str, n: int = 1) -> None:
-    _TALLY[key] = _TALLY.get(key, 0) + n
+    if not _IN_CUTTER:
+        _TALLY[key] = _TALLY.get(key, 0) + n
 
 
 def _instrument():
@@ -83,12 +85,33 @@ def _instrument():
                      ("horn_holes", horn_holes), ("servo_case_screws", servo_case_screws),
                      ("dowel_socket", dowel_socket)):
         setattr(F, name, fn)
+
+    # The chest is cut by the whole head at every pose of its yaw/pitch range, so building
+    # torso_fore (and the fore skin) builds the head, inserts and all. Those heads are
+    # cutters; the head's own features are counted once, by its own builder. Counted here
+    # they put the head's 8 inserts on torso_fore's line.
+    from cad.parts import body
+    orig_poses = body.head_poses
+
+    def head_poses(*a, **kw):
+        global _IN_CUTTER
+        _IN_CUTTER = True
+        try:
+            return orig_poses(*a, **kw)
+        finally:
+            _IN_CUTTER = False
+
+    body.head_poses = head_poses
+    orig[(body, "head_poses")] = orig_poses
     return orig
 
 
 def _restore(orig) -> None:
     for n, fn in orig.items():
-        setattr(F, n, fn)
+        if isinstance(n, tuple):
+            setattr(*n, fn)
+        else:
+            setattr(F, n, fn)
 
 
 def count_features() -> dict[str, int]:
