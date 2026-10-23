@@ -42,15 +42,18 @@ niceties.
 | **Actuator** | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial daisy-chain, **backdrivable** |
 | **Compute** | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W (15 W default) |
 | **Sensors** | stereo CSI eyes, BNO085 IMU, 2× VL53L1X ToF, 2× I²S mic, BME688 e-nose, I²S speaker |
-| **Envelope** | 352 × 201 × 197 mm (posed) |
+| **Envelope** | 342 × 201 × 193 mm (posed) |
 | **Legs** | front 67.5 / 52.0 / 26.0 mm, rear 64.0 / 80.5 / 31.5 mm (digitigrade, cat-anatomical) |
 | **Fabrication** | fully 3D-printed frame + skin (PLA/PETG), 31 distinct parts, 88 heat-set inserts (80× M2 + 8× M3), clevis pivots on Ø3 pins; head + torso split for print |
 
 ## Mechanism (design contribution)
 
-- **Four-bar knee** (`analysis/fourbar.py`, `P.FOURBAR`): knee ROM **128° (2.24 rad)**,
-  transmission angle **41–140°** (singularity-free), monotonic/invertible. Per-leg
-  reachable knee: front 23.7–152.3°, rear 35.4–164.0° (cat-correct fore < hind fold).
+- **Four-bar knee** (`analysis/fourbar.py`, `P.fourbar(leg)`): each end has its own
+  linkage — front `P.FOURBAR` (ground 38), rear `P.FOURBAR_REAR` (ground 36.5, coupler
+  48.5, so the rear knee servo clears the hip bracket's screw). Knee ROM **128° front /
+  131° rear**, transmission angle **41–140°** (singularity-free), monotonic/invertible.
+  Per-leg reachable knee: front 23.7–152.3°, rear 33.8–164.6° (cat-correct fore < hind
+  fold); the gaits are capped at the fold limit, 123° front / 121° rear.
   Verified as a closed loop in MuJoCo (held to 0.16 mm) and as CAD parts on the leg.
 - **Remote-axle hip**: hip servos relocated to the torso core, driven to the pivot by
   a Ø6 axle in bearings → per-hip lateral inertia **16.46 → 1.16 ×10⁻⁴ kg·m² (−93%)**.

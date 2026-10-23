@@ -9,8 +9,8 @@ Actuator: **feetech_sts3215** x12.
 
 | Part | Qty | Unit $ | Ext $ | Order as | Where it goes |
 |---|--:|--:|--:|---|---|
-| Heat-set insert M2 x 4.0 mm (Dia3.2 melt hole) | 64 | 0.08-0.18 | 5.12-11.52 | M2 insert pack (50-100) | melt-in brass; every threaded joint in the printed frame |
-| Socket-head screw M2 x 8 mm, stainless | 64 | 0.04-0.09 | 2.56-5.76 | M2 screw assortment | one per M2 insert |
+| Heat-set insert M2 x 4.0 mm (Dia3.2 melt hole) | 80 | 0.08-0.18 | 6.40-14.40 | M2 insert pack (50-100) | melt-in brass; every threaded joint in the printed frame |
+| Socket-head screw M2 x 8 mm, stainless | 80 | 0.04-0.09 | 3.20-7.20 | M2 screw assortment | one per M2 insert |
 | Heat-set insert M3 x 5.7 mm (Dia4.1 melt hole) | 8 | 0.10-0.22 | 0.80-1.76 | M3 insert pack (50-100) | melt-in brass; every threaded joint in the printed frame |
 | Socket-head screw M3 x 10 mm, stainless | 8 | 0.05-0.10 | 0.40-0.80 | M3 screw assortment | one per M3 insert |
 | Socket-head screw M2 x 10 mm, stainless (servo case) | 48 | 0.04-0.09 | 1.92-4.32 | M2 screw assortment | through the printed boss into the STS3215 own tapped flange, 4 per servo, no insert |
@@ -27,7 +27,7 @@ Actuator: **feetech_sts3215** x12.
 | Shaft Dia6 h6 x 30 mm, hardened steel or CF rod | 4 | 1.50-3.50 | 6.00-14.00 | Dia6 rod, cut to length | hip drive axle: core servo horn out to the thigh inboard cheek |
 | Dowel rod Dia4 x 12 mm | 9 | 0.15-0.35 | 1.35-3.15 | Dia4 rod, cut to length | print-split alignment (torso halves + head); press one side, slip the other |
 
-**Joint + fastener hardware total: $38-$83 per robot.**
+**Joint + fastener hardware total: $40-$87 per robot.**
 
 Notes
 -----

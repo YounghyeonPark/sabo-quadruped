@@ -75,9 +75,9 @@ All derived from the model — regenerate with `python -m analysis.platform_repo
 | DOF | **12 actuated** — 2 motors/leg (hip+knee) + coupled ankle + rigid abduction; 4 expressive (waist, head pan/pitch, tail). The head holds two servo housings, so the ears are rigid and camera **roll** is corrected electronically instead of by a third gimbal axis |
 | Actuator | Feetech STS3215 ×12 — 2.94 N·m stall, 60 g, TTL serial, **backdrivable** |
 | Compute | Jetson Orin Nano Super (8 GB), 67 TOPS, 7–25 W |
-| Four-bar knee | 128° ROM, 41–140° transmission angle (singularity-free) |
+| Four-bar knee | 128° ROM front / 131° rear — each end has its own linkage — 41–140° transmission angle (singularity-free) |
 | Remote-axle hip | **−93 %** lateral inertia of the **hip** servos (−46 % counting all 8 leg servos — the knee servos stay on the thighs) |
-| Envelope | 352 × 201 × 197 mm |
+| Envelope | 342 × 201 × 193 mm |
 | Viable scale range | **k ≈ 0.7–1.5** (body 126–270 mm) — the fixed actuator sets the window |
 
 Gait benchmark (MuJoCo):
@@ -107,7 +107,7 @@ The ribcage, the channel thighs and the four-bar inside them read through the tr
 <p align="center">
   <img src="docs/img/fourbar.png" alt="Four-bar knee kinematics" width="90%" />
 </p>
-<p align="center"><em>Proximal four-bar knee — 129° ROM, monotonic and invertible, with the
+<p align="center"><em>Proximal four-bar knee — 128° ROM (front), monotonic and invertible, with the
 transmission angle held inside 40–140° (no singularity/lock-up). The same tool sizes the
 tail and head-yaw drives, which are four-bars for the same reason: no room for a servo on
 the joint itself.</em></p>

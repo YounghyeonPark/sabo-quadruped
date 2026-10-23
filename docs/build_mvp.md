@@ -173,11 +173,12 @@ From `docs/assembly.md §5`. Fasteners per joint called out inline.
    (M2 case screws); bolt `crank` onto its horn (4× M2 + centre). Pin the passive
    **knee** (`upper`↔`lower`, Ø3 + e-clip), link the **pushrod** crank→rocker
    (2× Ø3 + e-clips), pin the **ankle** (`lower`↔`foot`, Ø3 + e-clip). Confirm the
-   four-bar sweeps its crank window (−20…81°) without binding. → **4 Ø3 pins/leg**.
+   four-bar sweeps its crank window (front −20…81°, rear −21…82°) without binding. → **4 Ø3 pins/leg**.
 8. **Head gimbal:** assemble pan→pitch→tilt (servos 10/11/12); bolt head stub to the
    tilt bracket (4× M2 into neck-stub inserts). Bolt ears + tail onto their horns
    (ear 2× M2 ea; tail 4× M2).
-9. **Skin:** clip the cosmetic `shell` halves + head shell over the finished frame.
+9. **Skin:** clip the cosmetic `shell` halves over the finished frame (the head is its
+   own printed skin; no head shell).
 10. **Electronics bay:** Jetson in the fore back-bay (airflow), 3S LiPo in the aft
     belly bay, bus adapter + speaker in the aft. Daisy-chain the STS3215 bus
     (order: legs 1–8 → waist 9 → head 10–12 → ear 13 → tail 14), route the head

@@ -146,10 +146,12 @@ further up, and the only cavity there is the chest.
 
 Two placement consequences worth knowing before changing anything:
 
-- The **yaw axis is 18 mm behind the head's centre** (`HEAD_GIMBAL_STACK`). It has to be:
-  the head ball leaves 2 mm under it at its own centre and 15 mm at 18 mm back, and the
-  pan linkage needs a horizontal plane to run in. The head itself does not move — only the
-  axis — which gives it a slight sideways shift as it turns, the way a real neck does.
+- The **yaw axis runs through the head's centre** (`HEAD_GIMBAL_STACK = 0`), so the head
+  turns in place. It used to sit 18 mm behind; the head then orbited as it turned and hit
+  the ribcage from 10° of yaw (1871 mm³ at the worst commanded pose). The pan servo moved
+  forward with the axis (`PAN_SERVO` x = 49), so the ground — and the linkage below — is
+  unchanged. The chest is cut by the head at 7 × 5 yaw/pitch poses, each 3 % oversize to
+  cover the travel between samples.
 - The **head sits 8 mm above the shoulder line** (`HEAD_RISE`), which is what finally gave
   the pan rocker room to pass under the ball.
 - The **crank is deliberately small** (17 mm). A longer one reaches the same range with a
@@ -291,7 +293,8 @@ waist (9) → head pan/pitch (10–11) → tail (12). LED eyes are
 7. **Electronics.** Seat the Jetson in the fore back-bay, battery in the aft belly
    bay, bus adapter + speaker in the aft. Route + daisy-chain the bus (§4), plug
    the head sensor loom down the neck.
-8. **Skin.** Fit the `shell` halves + head shell over the frame last, then bolt the
+8. **Skin.** Fit the `shell` halves over the frame last (the head is its own printed
+   skin — it seats in the chest skin's socket and needs no shell), then bolt the
    four limb fairings on: 2× M2 each into the inserts in the thigh and the shank
    (the shank's pair sits below the knee blade). Check the fairings swing clear of
    the body through a full hip sweep before the screws go in — they are cut to the
