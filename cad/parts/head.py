@@ -51,8 +51,8 @@ def head() -> Part:
     for side in (+1, -1):
         px, py, pz = P.ear_station(side)
         shell += Pos(px, py, pz - 7.0) * Cylinder(10.0, 14.0)      # boss up to a flat top
-        for dx in (+4, -4):
-            shell -= Pos(px + dx, py, pz - ins["depth"] / 2) * \
+        for dy in (+4, -4):                                        # across, under the foot
+            shell -= Pos(px, py + dy, pz - ins["depth"] / 2) * \
                 F.heatset_hole("M2", "z", ins["depth"])
 
     # PITCH actuator: the nod axis is driven directly, by a servo centred in the head with

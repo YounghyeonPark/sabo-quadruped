@@ -347,7 +347,8 @@ EYE_R = 11.0 * SCALE
 EYE_SPACING = 40.0 * SCALE
 CAM_R = 6.0           # internal camera bore radius (not in the scaled-dims list)
 EAR_BASE_H = 6.0 * SCALE           # flat foot of the ear, seated on the head's mounting pad
-EAR_FOOT_W = 10.0 * SCALE          # foot width across the head (Y)
+EAR_FOOT_W = 10.0 * SCALE          # foot depth front-to-back (X); its length runs across
+                                   # the head (Y), under the blade, which faces forward
 EAR_PAD_PROUD = 1.0 * SCALE        # how far the pad stands off the sphere, so the foot lands flat
 
 
@@ -363,14 +364,16 @@ def ear_station(side: int = 1) -> tuple[float, float, float]:
     x = HEAD_R * 0.3
     y = side * EYE_SPACING / 2
     # the foot's corner nearest the head's axis is where the sphere rises highest
-    cx = max(abs(x) - EAR_BASE * 0.25, 0.0)
-    cy = max(abs(y) - EAR_FOOT_W / 2, 0.0)
+    cx = max(abs(x) - EAR_FOOT_W / 2, 0.0)
+    cy = max(abs(y) - EAR_BASE * 0.25, 0.0)
     z = math.sqrt(max(HEAD_R ** 2 - cx * cx - cy * cy, 1.0))
     return (x, y, z + EAR_PAD_PROUD)
 
 
-EAR_H = 34.0 * SCALE
+EAR_H = 26.0 * SCALE              # blade height above the foot (was 34: too tall for a kitten)
 EAR_BASE = 26.0 * SCALE
+EAR_TIP_R = 6.0 * SCALE            # the tip is a rounded arc, not a point
+EAR_T = 3.0                        # blade thickness (front-to-back); a print wall, unscaled
 TAIL_L = 120.0 * SCALE
 TAIL_BASE_R = 9.0 * SCALE
 
